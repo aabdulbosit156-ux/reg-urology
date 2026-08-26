@@ -46,19 +46,18 @@ webhook ham public `web` orqali private `api`ga boradi.
    deploymentidan o‘tayotganda bir marta **Clear build cache** bilan redeploy qiling.
 5. Faqat `web` servisida public domain yarating. `api` va `worker` public domainlarini o‘chirilgan
    holda qoldiring.
-6. `api` va `worker`da bir xil sealed qiymatlarni kiriting:
+6. `api` va `worker`da faqat quyidagilarni kiriting:
 
-   - `ADMIN_TOKEN`: kamida 32 random byte;
-   - `SESSION_SECRET`: undan mustaqil kamida 32 random byte;
-   - `APP_ENCRYPTION_KEY`: bot tokenini shifrlash uchun mustaqil kamida 32 random byte;
-   - `WEBHOOK_SECRET`: mustaqil kamida 32 random byte;
-   - `PUBLIC_BASE_URL`: `web` servisining path/querysiz to‘liq `https://...` origini;
-   - `ALLOWED_ORIGINS`: xuddi shu web origin;
-   - `COOKIE_SECURE=true`, `TRUST_PROXY_HEADERS=true`;
-   - `INBOX_PAYLOAD_RETENTION_HOURS=24`.
+   - `ADMIN_TOKEN`: kamida 32 random byte (`openssl rand -hex 32`). Bu yagona majburiy secret —
+     `SESSION_SECRET`, `APP_ENCRYPTION_KEY` va `WEBHOOK_SECRET` kod ichida shundan deterministik
+     hosil qilinadi (ADMIN_TOKEN o‘zgarmaguncha barqaror);
+   - `DATABASE_URL`: Railway Postgres reference (`${{Postgres.DATABASE_URL}}`);
+   - `PUBLIC_BASE_URL` (ixtiyoriy, lekin Telegram bot uchun kerak): `web` servisining path/querysiz
+     to‘liq `https://...` origini.
 
-   Secretlar servislar orasida Railway shared/reference variable orqali berilishi mumkin. Ularni
-   Git, frontend environment yoki build logiga yozmang.
+   `COOKIE_SECURE`, `TRUST_PROXY_HEADERS` va `ALLOWED_ORIGINS` Railway’da avtomatik to‘g‘rilanadi
+   (hosted muhitda cookie secure/proxy true; CORS ishonchli web proxydan kelgan origin orqali).
+   Ularni qo‘lda kiritish shart emas. Secretlarni Git, frontend environment yoki build logiga yozmang.
 7. Faqat `api` servisining **Pre-deploy Command** maydoniga kiriting:
 
    ```bash

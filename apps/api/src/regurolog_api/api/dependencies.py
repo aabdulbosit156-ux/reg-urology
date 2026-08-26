@@ -74,8 +74,20 @@ def require_allowed_origin(request: Request, settings: Settings) -> None:
         if settings.environment in {AppEnvironment.STAGING, AppEnvironment.PRODUCTION}:
             raise ApiError(403, "ORIGIN_REQUIRED", "So'rov manbasi tasdiqlanmadi")
         return
-    if origin.rstrip("/") not in settings.allowed_origins:
-        raise ApiError(403, "ORIGIN_NOT_ALLOWED", "So'rov manbasi ruxsat etilmagan")
+    normalized = origin.rstrip("/")
+    if normalized in settings.allowed_origins:
+        return
+    # The trusted web proxy is the only caller of the private API and forwards the
+    # public host the browser actually used. Accept a same-site origin without
+    # needing PUBLIC_BASE_URL/ALLOWED_ORIGINS configured by hand.
+    if settings.trust_proxy_headers:
+        forwarded_host = request.headers.get("x-forwarded-host")
+        if forwarded_host and normalized in {
+            f"https://{forwarded_host}",
+            f"http://{forwarded_host}",
+        }:
+            return
+    raise ApiError(403, "ORIGIN_NOT_ALLOWED", "So'rov manbasi ruxsat etilmagan")
 
 
 async def require_root(request: Request) -> CurrentRoot:

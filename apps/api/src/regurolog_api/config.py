@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import os
 from enum import StrEnum
 from functools import cached_property
 from urllib.parse import urlsplit
@@ -11,6 +14,29 @@ class AppEnvironment(StrEnum):
     TEST = "test"
     STAGING = "staging"
     PRODUCTION = "production"
+
+
+def derive_secret(master: str, label: str) -> str:
+    """Deterministically derive an independent secret from the admin token.
+
+    Using HMAC-SHA256 with a distinct label per purpose yields cryptographically
+    independent 64-byte-hex secrets that stay stable across restarts and
+    redeploys, so sessions remain valid and encrypted data stays readable as long
+    as ADMIN_TOKEN is unchanged.
+    """
+
+    return hmac.new(
+        master.encode("utf-8"),
+        f"regurolog/v1/{label}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _running_on_railway() -> bool:
+    return any(
+        os.getenv(name)
+        for name in ("RAILWAY_PROJECT_ID", "RAILWAY_SERVICE_ID", "RAILWAY_ENVIRONMENT_NAME")
+    )
 
 
 class Settings(BaseSettings):
@@ -126,56 +152,85 @@ class Settings(BaseSettings):
         return frozenset(origins)
 
     @model_validator(mode="after")
-    def validate_production_safety(self) -> "Settings":
+    def finalize_settings(self) -> "Settings":
+        self._apply_automatic_defaults()
+        self._validate_hosted_safety()
+        return self
+
+    def _apply_automatic_defaults(self) -> None:
+        """Fill in everything derivable so ADMIN_TOKEN is the only required secret.
+
+        A bare Railway deploy that only sets ADMIN_TOKEN (and the platform-provided
+        DATABASE_URL) becomes a hosted, secure service without a dozen hand-set
+        variables. Explicitly provided values are always respected.
+        """
+
+        env_explicit = "REGUROLOG_ENV" in os.environ or "ENVIRONMENT" in os.environ
+        if _running_on_railway() and not env_explicit:
+            self.environment = AppEnvironment.PRODUCTION
+
+        # Derive the remaining secrets from ADMIN_TOKEN when they are not set.
+        if self.admin_token is not None:
+            master = self.admin_token.get_secret_value()
+            if self.session_secret is None:
+                self.session_secret = SecretStr(derive_secret(master, "session-secret"))
+            if self.app_encryption_key is None:
+                self.app_encryption_key = SecretStr(derive_secret(master, "encryption-key"))
+            if self.webhook_secret is None:
+                self.webhook_secret = SecretStr(derive_secret(master, "webhook-secret"))
+
+        # Public URL (Telegram webhook + CORS) falls back to Railway's domain.
+        if self.public_base_url is None:
+            railway_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN")
+            if railway_domain:
+                self.public_base_url = f"https://{railway_domain}"
+
+        # Behind Railway's edge the app always sits behind a TLS-terminating proxy.
+        if self.environment in {AppEnvironment.STAGING, AppEnvironment.PRODUCTION}:
+            self.cookie_secure = True
+            self.trust_proxy_headers = True
+
+    def _validate_hosted_safety(self) -> None:
         if self.environment not in {AppEnvironment.STAGING, AppEnvironment.PRODUCTION}:
-            return self
+            return
 
         missing = [
             name
             for name, value in (
                 ("DATABASE_URL", self.database_url),
                 ("ADMIN_TOKEN", self.admin_token),
-                ("SESSION_SECRET", self.session_secret),
-                ("APP_ENCRYPTION_KEY", self.app_encryption_key),
-                ("WEBHOOK_SECRET", self.webhook_secret),
-                ("PUBLIC_BASE_URL", self.public_base_url),
             )
             if value is None
         ]
         if missing:
             raise ValueError(f"Hosted muhit uchun majburiy sozlamalar yo'q: {', '.join(missing)}")
 
-        assert self.admin_token is not None
-        assert self.session_secret is not None
-        assert self.app_encryption_key is not None
-        assert self.webhook_secret is not None
-        assert self.public_base_url is not None
-        admin_token = self.admin_token.get_secret_value()
-        session_secret = self.session_secret.get_secret_value()
-        if len(admin_token.encode()) < 32 or admin_token.startswith("replace-with-"):
-            raise ValueError("ADMIN_TOKEN kamida 32 byte bo'lishi kerak")
-        if len(session_secret.encode()) < 32 or session_secret.startswith("replace-with-"):
-            raise ValueError("SESSION_SECRET kamida 32 byte bo'lishi kerak")
-        encryption_key = self.app_encryption_key.get_secret_value()
-        webhook_secret = self.webhook_secret.get_secret_value()
-        if len(encryption_key.encode()) < 32 or encryption_key.startswith("replace-with-"):
-            raise ValueError("APP_ENCRYPTION_KEY kamida 32 byte bo'lishi kerak")
-        if len(webhook_secret.encode()) < 32 or webhook_secret.startswith("replace-with-"):
-            raise ValueError("WEBHOOK_SECRET kamida 32 byte bo'lishi kerak")
-        public_url = urlsplit(self.public_base_url)
-        if (
-            public_url.scheme != "https"
-            or not public_url.netloc
-            or public_url.username is not None
-            or public_url.password is not None
-            or public_url.path not in {"", "/"}
-            or public_url.query
-            or public_url.fragment
+        # Secrets are always populated by now (derived from ADMIN_TOKEN); the
+        # strength checks stay to reject weak values if any are set by hand.
+        for name, secret in (
+            ("ADMIN_TOKEN", self.admin_token),
+            ("SESSION_SECRET", self.session_secret),
+            ("APP_ENCRYPTION_KEY", self.app_encryption_key),
+            ("WEBHOOK_SECRET", self.webhook_secret),
         ):
-            raise ValueError("PUBLIC_BASE_URL path/querysiz to'liq https origin bo'lishi kerak")
-        if not self.cookie_secure:
-            raise ValueError("COOKIE_SECURE hosted muhitda true bo'lishi kerak")
-        return self
+            if secret is None:
+                continue
+            raw = secret.get_secret_value()
+            if len(raw.encode()) < 32 or raw.startswith("replace-with-"):
+                raise ValueError(f"{name} kamida 32 byte bo'lishi kerak")
+
+        if self.public_base_url is not None:
+            public_url = urlsplit(self.public_base_url)
+            if (
+                public_url.scheme != "https"
+                or not public_url.netloc
+                or public_url.username is not None
+                or public_url.password is not None
+                or public_url.path not in {"", "/"}
+                or public_url.query
+                or public_url.fragment
+            ):
+                raise ValueError("PUBLIC_BASE_URL path/querysiz to'liq https origin bo'lishi kerak")
 
 
 def normalize_database_url(url: str) -> str:

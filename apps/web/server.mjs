@@ -15,10 +15,12 @@ const maxRequestBodyBytes = 2 * 1024 * 1024;
 function upstreamUrl() {
   if (process.env.API_UPSTREAM_URL) return new URL(process.env.API_UPSTREAM_URL);
   const upstreamHost = process.env.API_UPSTREAM_HOST;
-  const upstreamPort = process.env.API_UPSTREAM_PORT;
-  if (upstreamHost && upstreamPort) return new URL(`http://${upstreamHost}:${upstreamPort}`);
+  const upstreamPort = process.env.API_UPSTREAM_PORT ?? "8000";
+  if (upstreamHost) return new URL(`http://${upstreamHost}:${upstreamPort}`);
   if (process.env.NODE_ENV === "production") {
-    throw new Error("API_UPSTREAM_URL yoki API_UPSTREAM_HOST/API_UPSTREAM_PORT talab qilinadi");
+    // Railway private network default: the backend service is named "api".
+    // Override with API_UPSTREAM_URL if the service has a different name.
+    return new URL(`http://api.railway.internal:${upstreamPort}`);
   }
   return new URL("http://127.0.0.1:8000");
 }

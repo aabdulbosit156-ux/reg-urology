@@ -4,6 +4,10 @@ export default defineRailway((context) => {
   const production = context.environment === "production";
   const database = postgres("postgres");
 
+  // ADMIN_TOKEN is the single secret an operator must set. SESSION_SECRET,
+  // APP_ENCRYPTION_KEY and WEBHOOK_SECRET are derived from it in code, and
+  // COOKIE_SECURE / TRUST_PROXY_HEADERS default to true on Railway. PUBLIC_BASE_URL
+  // is only needed for the Telegram webhook — set it to the web service's URL.
   const api = service("api", {
     healthcheck: "/api/v1/health/ready",
     healthcheckTimeout: 30,
@@ -15,14 +19,7 @@ export default defineRailway((context) => {
       REGUROLOG_ENV: production ? "production" : "staging",
       DATABASE_URL: database.env.DATABASE_URL,
       ADMIN_TOKEN: preserve(),
-      SESSION_SECRET: preserve(),
-      APP_ENCRYPTION_KEY: preserve(),
-      WEBHOOK_SECRET: preserve(),
       PUBLIC_BASE_URL: preserve(),
-      ALLOWED_ORIGINS: preserve(),
-      COOKIE_SECURE: "true",
-      TRUST_PROXY_HEADERS: "true",
-      ROOT_SESSION_TTL_SECONDS: "3600",
     },
   });
 
@@ -34,15 +31,7 @@ export default defineRailway((context) => {
       REGUROLOG_ENV: production ? "production" : "staging",
       DATABASE_URL: database.env.DATABASE_URL,
       ADMIN_TOKEN: preserve(),
-      SESSION_SECRET: preserve(),
-      APP_ENCRYPTION_KEY: preserve(),
-      WEBHOOK_SECRET: preserve(),
       PUBLIC_BASE_URL: preserve(),
-      ALLOWED_ORIGINS: preserve(),
-      COOKIE_SECURE: "true",
-      TRUST_PROXY_HEADERS: "true",
-      WORKER_POLL_SECONDS: "1",
-      INBOX_PAYLOAD_RETENTION_HOURS: "24",
     },
   });
 
