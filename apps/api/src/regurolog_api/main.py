@@ -1,12 +1,15 @@
+import asyncio
 import logging
+import os
 import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from regurolog_api import __version__
@@ -19,6 +22,43 @@ from regurolog_api.errors import ApiError
 
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
 logger = logging.getLogger(__name__)
+
+# When REGUROLOG_PROCESS is "all" (the default single-service deploy) this one
+# process also runs the Telegram worker loop and serves the built frontend.
+_PROCESS_MODE = os.getenv("REGUROLOG_PROCESS", "all").strip().lower()
+_RUN_WORKER_IN_PROCESS = _PROCESS_MODE == "all"
+
+_STATIC_SECURITY_HEADERS = {
+    "Content-Security-Policy": (
+        "default-src 'self'; img-src 'self' data:; connect-src 'self'; font-src 'self'; "
+        "style-src 'self'; script-src 'self'; frame-ancestors 'none'; base-uri 'self'; "
+        "form-action 'self'"
+    ),
+    "X-Frame-Options": "DENY",
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "same-origin",
+}
+
+
+def _frontend_directory() -> Path | None:
+    """Resolve the built frontend directory, if present.
+
+    Defaults to the location baked into the single-service container image and
+    can be overridden with WEB_DIST_DIR for local runs.
+    """
+
+    configured = os.getenv("WEB_DIST_DIR", "/app/web")
+    candidate = Path(configured).resolve()
+    return candidate if (candidate / "index.html").is_file() else None
+
+
+def _static_response(path: Path) -> FileResponse:
+    cache = (
+        "no-cache"
+        if path.name == "index.html"
+        else "public, max-age=31536000, immutable"
+    )
+    return FileResponse(path, headers={**_STATIC_SECURITY_HEADERS, "Cache-Control": cache})
 
 
 def _request_id(request: Request) -> str:
@@ -61,9 +101,38 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             Database(runtime_settings.database_url) if runtime_settings.database_url else None
         )
         application.state.database = database
+
+        stop_event: asyncio.Event | None = None
+        worker_task: asyncio.Task[None] | None = None
+        if (
+            _RUN_WORKER_IN_PROCESS
+            and database is not None
+            and runtime_settings.environment is not AppEnvironment.TEST
+        ):
+            # Lazy import keeps the aiogram dependency out of the import path when
+            # the worker is not co-hosted (REGUROLOG_PROCESS=api).
+            from regurolog_api.worker import Worker, run_worker_loop
+
+            try:
+                worker = Worker(runtime_settings, database)
+            except Exception:  # noqa: BLE001 - degrade to API-only if bot unconfigured
+                logger.exception("Worker ishga tushmadi; API worker'siz davom etadi")
+            else:
+                stop_event = asyncio.Event()
+                worker_task = asyncio.create_task(
+                    run_worker_loop(worker, stop_event, runtime_settings.worker_poll_seconds)
+                )
+
         try:
             yield
         finally:
+            if stop_event is not None:
+                stop_event.set()
+            if worker_task is not None:
+                try:
+                    await asyncio.wait_for(worker_task, timeout=10)
+                except (TimeoutError, asyncio.CancelledError):
+                    worker_task.cancel()
             if database is not None:
                 await database.close()
 
@@ -162,6 +231,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
 
     application.include_router(api_router, prefix="/api/v1")
+
+    frontend_directory = _frontend_directory()
+    if frontend_directory is not None:
+        index_file = frontend_directory / "index.html"
+
+        @application.get("/{full_path:path}", include_in_schema=False)
+        async def serve_frontend(full_path: str) -> Response:
+            # Unknown API paths stay JSON 404s instead of the SPA shell.
+            if full_path == "api" or full_path.startswith("api/"):
+                raise ApiError(404, "NOT_FOUND", "Manzil topilmadi")
+            if full_path:
+                candidate = (frontend_directory / full_path).resolve()
+                if candidate.is_relative_to(frontend_directory) and candidate.is_file():
+                    return _static_response(candidate)
+            # SPA fallback: let the client-side router resolve the path.
+            return _static_response(index_file)
+
     return application
 
 

@@ -1,81 +1,59 @@
 # Railway deploy kontrakti
 
-RegUrolog lokal Docker yoki Docker Compose talab qilmaydi. Production image’lari Railway va CI’da
-repository Dockerfile’laridan quriladi. Topologiya to‘rtta Railway resursidan iborat: ochiq `web`,
-private `api`, private `worker` va Railway boshqaradigan `postgres`.
+RegUrolog bitta servis sifatida deploy qilinadi. Rootdagi `Dockerfile` frontendni va
+Python backendni bitta image ichiga yig‘adi; o‘sha image bir jarayonda static UI’ni beradi,
+API’ni ochadi va Telegram worker’ini ichida (`REGUROLOG_PROCESS=all`) ishlatadi. Topologiya
+ikki resursdan iborat: `app` va Railway boshqaradigan `postgres`.
 
-## Servislar
+## Servis
 
-| Servis | Dockerfile | Image entrypoint | Healthcheck |
+| Servis | Dockerfile | Ichida ishlaydigan | Healthcheck |
 |---|---|---|---|
-| `web` | `/Dockerfile` | `node apps/web/server.mjs` | `/healthz` |
-| `api` | `/Dockerfile.backend` | `REGUROLOG_PROCESS=api` | `/api/v1/health/ready` |
-| `worker` | `/Dockerfile.backend` | `REGUROLOG_PROCESS=worker` | admin paneldagi `/api/v1/health/system` heartbeat |
+| `app` | `/Dockerfile` | API + frontend + worker (`REGUROLOG_PROCESS=all`) | `/api/v1/health/ready` |
 | `postgres` | Railway managed PostgreSQL | Railway boshqaradi | Railway boshqaradi |
 
-`Dockerfile` frontendni alohida build stage’da yig‘ib, runtime image’ga faqat `dist` va Node serverni
-oladi. `Dockerfile.backend` locked production dependencylardan bitta non-root image yaratadi; o‘sha
-image API va workerda `REGUROLOG_PROCESS` orqali ikki xil process sifatida ishlaydi. Railway **Build
-Command** va **Custom Start Command** bo‘sh bo‘lishi kerak: build Dockerfile’dan, start esa image
-`CMD`idan olinadi.
-
-`web` `/api/*` so‘rovlarini `http://${{api.RAILWAY_PRIVATE_DOMAIN}}:${{api.PORT}}`ga uzatadi.
-Brauzer cookie’lari same-origin bo‘lib qoladi; `api` va `worker`ga public domain berilmaydi. Telegram
-webhook ham public `web` orqali private `api`ga boradi.
+Frontend `/api/*` so‘rovlarini xuddi shu origin orqali API’ga yuboradi (same-origin, proxy
+kerak emas). Migratsiya container startida avtomatik bajariladi.
 
 ## Birinchi deploy
 
-1. Railway project yarating va Railway CLI bilan project/environmentga link qiling.
-2. Amaldagi IaC rejasini ko‘rib, resurslarni yarating:
-
-   ```bash
-   railway config plan
-   railway config apply
-   ```
-
-3. Bir xil GitHub repositoriyani `api`, `worker` va `web` servislariga source sifatida ulang. Root
+1. Railway project yarating va GitHub repositoriyani `app` servisiga source qiling. Root
    directory `/` bo‘lib qolsin: rootdagi `uv.lock` va `package-lock.json` build uchun kerak.
-4. Har uch servisning **Build Command** va **Custom Start Command** maydonlaridagi eski qiymatlarni
-   tozalang. Variable mapping quyidagicha bo‘lsin:
-
-   - `web`: `RAILWAY_DOCKERFILE_PATH=/Dockerfile`;
-   - `api`: `RAILWAY_DOCKERFILE_PATH=/Dockerfile.backend`, `REGUROLOG_PROCESS=api`;
-   - `worker`: `RAILWAY_DOCKERFILE_PATH=/Dockerfile.backend`, `REGUROLOG_PROCESS=worker`.
-
-   `.railway/railway.ts` ham shu qiymatlarni source of truth sifatida saqlaydi. Oldingi Railpack
-   deploymentidan o‘tayotganda bir marta **Clear build cache** bilan redeploy qiling.
-5. Faqat `web` servisida public domain yarating. `api` va `worker` public domainlarini o‘chirilgan
-   holda qoldiring.
-6. `api` va `worker`da faqat quyidagilarni kiriting:
+2. Servisning **Build Command** va **Custom Start Command** maydonlarini bo‘sh qoldiring —
+   build Dockerfile’dan, start esa image entrypointidan (`docker-entrypoint.sh`) olinadi.
+3. Projectga PostgreSQL qo‘shing.
+4. `app` servisiga faqat quyidagilarni kiriting:
 
    - `ADMIN_TOKEN`: kamida 32 random byte (`openssl rand -hex 32`). Bu yagona majburiy secret —
      `SESSION_SECRET`, `APP_ENCRYPTION_KEY` va `WEBHOOK_SECRET` kod ichida shundan deterministik
-     hosil qilinadi (ADMIN_TOKEN o‘zgarmaguncha barqaror);
-   - `DATABASE_URL`: Railway Postgres reference (`${{Postgres.DATABASE_URL}}`);
-   - `PUBLIC_BASE_URL` (ixtiyoriy, lekin Telegram bot uchun kerak): `web` servisining path/querysiz
-     to‘liq `https://...` origini.
+     hosil qilinadi (ADMIN_TOKEN o‘zgarmaguncha barqaror, ma’lumot yo‘qolmaydi);
+   - `DATABASE_URL`: Railway Postgres reference — `${{Postgres.DATABASE_URL}}`.
 
-   `COOKIE_SECURE`, `TRUST_PROXY_HEADERS` va `ALLOWED_ORIGINS` Railway’da avtomatik to‘g‘rilanadi
-   (hosted muhitda cookie secure/proxy true; CORS ishonchli web proxydan kelgan origin orqali).
-   Ularni qo‘lda kiritish shart emas. Secretlarni Git, frontend environment yoki build logiga yozmang.
-7. Faqat `api` servisining **Pre-deploy Command** maydoniga kiriting:
+   `PUBLIC_BASE_URL` avtomatik `RAILWAY_PUBLIC_DOMAIN`dan olinadi; `COOKIE_SECURE`,
+   `TRUST_PROXY_HEADERS`, `REGUROLOG_ENV=production` va CORS Railway’da avtomatik to‘g‘rilanadi.
+   Ularni qo‘lda kiritish shart emas. Secretlarni Git, frontend environment yoki build logiga
+   yozmang.
+5. `app` servisida public domain yarating. Deploy tugagach:
+   - `https://<domain>/` — UI;
+   - `https://<domain>/api/v1/health/live` — API liveness;
+   - `https://<domain>/api/v1/health/ready` — PostgreSQL readiness.
+6. Root orqali botni ulang. Backend `getMe` bilan tekshiradi, tokenni encrypted saqlaydi va
+   webhook URL/header secretni Telegramga o‘zi o‘rnatadi (`PUBLIC_BASE_URL` shuning uchun kerak).
 
-   ```bash
-   alembic -c apps/api/alembic.ini upgrade head
-   ```
+Migratsiya `docker-entrypoint.sh` ichida `alembic upgrade head` bilan har startda ishlaydi;
+alohida pre-deploy command shart emas. Repositoryda eski `railway.json`/`railway.toml`
+ishlatilmaydi.
 
-8. Migratsiya muvaffaqiyatli tugagach `api`, bitta replica `worker`, so‘ng `web`ni deploy qiling.
-9. Root orqali botni ulang. Backend `getMe` bilan tekshiradi, tokenni encrypted saqlaydi va webhook
-   URL/header secretni Telegramga o‘zi o‘rnatadi.
+### Alohida servislar (ixtiyoriy)
 
-Railway IaC hali pre-deploy commandni TypeScript authoring API orqali ifodalamaydi; shu bitta maydon
-dashboardda qo‘yiladi. Repositoryda eski `railway.json`/`railway.toml` ishlatilmaydi.
+Katta yuklamada worker’ni ajratish kerak bo‘lsa, xuddi shu image’ni ikkinchi servisda
+`REGUROLOG_PROCESS=worker` bilan ishga tushiring va birinchisini `REGUROLOG_PROCESS=api`
+qiling. `all` rejim kichik/o‘rta yuklama uchun yetarli.
 
 ## Production darvozalari
 
-- `https://<web-domain>/healthz` — web process;
-- `https://<web-domain>/api/v1/health/live` — API process;
-- `https://<web-domain>/api/v1/health/ready` — PostgreSQL readiness;
+- `https://<domain>/api/v1/health/live` — API process;
+- `https://<domain>/api/v1/health/ready` — PostgreSQL readiness;
 - root/director bilan `/api/v1/health/system` — worker heartbeat, inbox/outbox backlog va bot holati;
 - `TEST_DATABASE_URL` bilan migratsiya qilingan Railway PostgreSQLga qarshi pytest integration;
 - staging test bot bilan invite → approval → login va patient registration smoke;

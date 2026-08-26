@@ -335,6 +335,25 @@ class Worker:
                     draft.updated_at = now
 
 
+async def run_worker_loop(
+    worker: Worker,
+    stop_event: asyncio.Event,
+    poll_seconds: float,
+) -> None:
+    """Poll for work until stopped. A failing tick is logged, not fatal, so the
+    loop keeps running (important when co-hosted in-process with the API)."""
+
+    while not stop_event.is_set():
+        try:
+            await worker.tick()
+        except Exception:  # noqa: BLE001 - one bad tick must not kill the loop
+            logger.exception("Worker tick failed")
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=poll_seconds)
+        except TimeoutError:
+            pass
+
+
 async def run() -> None:
     logging.basicConfig(level=logging.INFO)
     settings = Settings()
@@ -351,12 +370,7 @@ async def run() -> None:
             # Windows local smoke runs do not implement loop signal handlers.
             pass
     try:
-        while not stop_event.is_set():
-            await worker.tick()
-            try:
-                await asyncio.wait_for(stop_event.wait(), timeout=settings.worker_poll_seconds)
-            except TimeoutError:
-                pass
+        await run_worker_loop(worker, stop_event, settings.worker_poll_seconds)
     finally:
         await database.close()
 
