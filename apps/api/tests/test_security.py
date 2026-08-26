@@ -1,7 +1,9 @@
 import pytest
 from pydantic import ValidationError
+from regurolog_api.api.dependencies import request_source
 from regurolog_api.config import Settings, normalize_database_url
 from regurolog_api.security import constant_time_token_matches, keyed_digest
+from starlette.requests import Request
 
 
 def test_railway_database_url_uses_psycopg_driver() -> None:
@@ -34,3 +36,18 @@ def test_production_rejects_insecure_or_missing_secrets() -> None:
                 "COOKIE_SECURE": False,
             }
         )
+
+
+def test_trusted_proxy_source_does_not_use_spoofable_leftmost_value() -> None:
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/v1/auth/root",
+            "headers": [(b"x-forwarded-for", b"spoofed, 203.0.113.9")],
+            "client": ("10.0.0.2", 1234),
+        }
+    )
+    settings = Settings.model_validate({"TRUST_PROXY_HEADERS": True})
+
+    assert request_source(request, settings) == "203.0.113.9"

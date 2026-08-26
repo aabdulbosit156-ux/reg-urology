@@ -81,8 +81,10 @@ class RootLoginRequest(BaseModel):
 class AuthPrincipal(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    kind: Literal["root"] = "root"
-    role: Literal[StaffRole.DEV] = StaffRole.DEV
+    kind: Literal["root", "staff"] = "root"
+    role: StaffRole = StaffRole.DEV
+    staff_id: str | None = None
+    full_name: str | None = None
 
 
 class AuthSessionResponse(BaseModel):

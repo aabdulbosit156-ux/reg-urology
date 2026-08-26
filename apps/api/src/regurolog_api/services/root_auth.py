@@ -134,7 +134,10 @@ class RootAuthService:
     ) -> Session | None:
         current_time = now or datetime.now(UTC)
         root_session = await db_session.scalar(
-            select(Session).where(Session.token_hash == self.session_token_hash(token))
+            select(Session).where(
+                Session.token_hash == self.session_token_hash(token),
+                Session.principal_type == "root",
+            )
         )
         if root_session is None or root_session.revoked_at is not None:
             return None

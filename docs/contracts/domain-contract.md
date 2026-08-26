@@ -49,3 +49,55 @@ API har endpoint va obyekt scope’ida ruxsatni tekshiradi. UI elementini yashir
   qiladi.
 - Mutatsiya cookie sessiyasi bilan birga `Origin` va `X-CSRF-Token`ni tekshiradi.
 - Login, xato login, rate-limit va logout maxfiy qiymatlarsiz audit event bo‘ladi.
+
+## Telegram, xodim va worker
+
+- Bot tokeni `getMe` bilan tekshiriladi, faqat backendda encrypted saqlanadi; oldingi botni
+  almashtirish explicit tasdiq talab qiladi.
+- Webhook opaque path va `X-Telegram-Bot-Api-Secret-Token`ni tekshiradi; update unique inboxga
+  commit bo‘lmaguncha `204` bermaydi.
+- Invite va panel login tokenlari hash ko‘rinishida, muddatli va bir martalik. Staff login browser
+  binding va Telegramdagi alohida approve/reject bosqichiga ega.
+- Staff deactivate sessiya/challengelarni bekor qiladi va ochiq assignmentlarni navbatga qaytaradi.
+- Bitta worker inbox/outboxni lease + `SKIP LOCKED` bilan ishlaydi. Final inbox raw payloadi default
+  24 soatdan keyin tozalanadi, dedup metadata qoladi.
+
+## Registratsiya va CRM invariantlari
+
+- Ism va `+998` telefon valid bo‘lgach patient, inquiry, consent, attribution va outbox bitta
+  tranzaksiyada yaratiladi; optional sabab buni bloklamaydi.
+- Telegram user ID patient uchun unique; telefon unique emas. Bir xil telefon auto-merge qilinmaydi,
+  `possible_duplicate` flag qo‘yiladi.
+- Bir patient/doctor uchun faqat bitta open inquiry. Inbox va outbox idempotency takror update/xabarni
+  dublikat qilmaydi.
+- Ro‘yxatda telefon maskalangan. To‘liq kontakt faqat "Qayta aloqa" oqimida, assignment tekshiruvi va
+  audit bilan ochiladi.
+- Bir inquiryda bitta `in_progress` attempt. 30 daqiqada tugamagan urinish `interrupted`; bu
+  `no_answer` degani emas.
+- Qabul varaqasi inquiry va Toshkent biznes sanasi bo‘yicha bitta; urinish va izohlar append-only
+  tarix sifatida bog‘lanadi.
+
+## Kalendar va tashrif invariantlari
+
+- Availability faqat joriy ko‘rinish; create/reschedule serverda jadval, override, block, horizon va
+  doctor lockni qayta tekshiradi.
+- PostgreSQL `btree_gist` exclusion bir doctorning `scheduled/checked_in` qabullarini overlap
+  qildirmaydi. Bir inquiryda bitta faol appointment.
+- Slot to‘qnashuvi `409 SLOT_TAKEN`; jadvalni mavjud qabul ustiga toraytirish `409
+  SCHEDULE_CONFLICT` va conflict IDlarini beradi.
+- Reschedule o‘sha appointment IDni saqlab, versiyani oshiradi; eski reminder workerda stale deb
+  bekor qilinadi.
+- `no_show` faqat grace vaqtidan keyin staff amali bilan. `completed` inquiry’ni `attended` sababi
+  bilan yopadi; correction faqat DEV/DIRECTOR va majburiy sabab bilan append-only event yaratadi.
+
+## API yo‘nalishlari
+
+- Auth/staff: `/auth/*`, `/staff`, `/staff/invites*`, `/staff/{id}/deactivate`.
+- Bot/webhook: `/bot*`, `/telegram/webhook/{opaque_path}`.
+- CRM: `/patients*`, `/inquiries*`, `/contact-attempts*`, `/reception-sheets*`.
+- Kalendar: `/doctors*`, `/schedule/*`, `/calendar/availability`, `/appointments*`.
+- Boshqaruv: `/campaigns*`, `/settings*`, `/analytics/cohort`, `/analytics/activity`,
+  `/reports/no-shows`, `/health/system`.
+
+Mutatsiya ruxsati backend principal va obyekt assignmentiga qarab tekshiriladi. Root/DIRECTOR global
+sozlamalar va correctionga ega; ADMIN global settings/marketing/correction APIlarida `403` oladi.

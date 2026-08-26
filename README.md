@@ -3,8 +3,8 @@
 Telegram orqali bemor murojaatlarini yig‘ish, xodimlar qayta aloqasi, 15 daqiqalik qabul kalendari
 va boshqaruv hisobotlari uchun modulli monolit.
 
-Asosiy talablar [RegUrolog_Codex_Plan.md](RegUrolog_Codex_Plan.md)da. Hozir 1-bosqichning
-Railway-ready root access kodi tayyor: tafsilot [phase-1 checkpoint](docs/checkpoints/phase-1.md)da.
+Asosiy talablar [RegUrolog_Codex_Plan.md](RegUrolog_Codex_Plan.md)da. 0–8-bosqichlarning V1 kodi
+tayyor; lokal va production gate holati [yakuniy checkpoint](docs/checkpoints/phases-2-8.md)da.
 
 ## Lokal ish — Dockersiz
 
@@ -40,6 +40,7 @@ Vite `/api` so‘rovlarini `http://127.0.0.1:8000`ga proxy qiladi.
 ## Railway
 
 Production Dockerfile ishlatmaydi: Railway Railpack lockfilelardan native build qiladi. Topologiya:
-ochiq `web`, private `api`, managed `postgres`. Aniq build/start, secret, migration va rollback
-qadamlari [Railway deploy qo‘llanmasi](docs/deployment/railway.md)da; infra source of truth
+ochiq `web`, private `api`, private `worker`, managed `postgres`. Aniq build/start, secret,
+migration va rollback qadamlari [Railway deploy qo‘llanmasi](docs/deployment/railway.md)da; kundalik
+ekspluatatsiya [runbook](docs/operations/runbook.md)da; infra source of truth
 [.railway/railway.ts](.railway/railway.ts).

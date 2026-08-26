@@ -29,6 +29,21 @@ export default defineConfig({
         viewport: { width: 1440, height: 1000 },
       },
     },
+    {
+      name: "tablet-768",
+      use: {
+        ...devices["Desktop Edge"],
+        viewport: { width: 768, height: 1024 },
+        hasTouch: true,
+      },
+    },
+    {
+      name: "laptop-1024",
+      use: {
+        ...devices["Desktop Edge"],
+        viewport: { width: 1024, height: 900 },
+      },
+    },
   ],
   webServer: [
     {

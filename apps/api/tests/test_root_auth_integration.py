@@ -80,7 +80,12 @@ async def test_root_login_session_and_logout_against_postgres() -> None:
         assert "regurolog_session" in login.headers["set-cookie"]
         assert admin_token not in login.headers["set-cookie"]
         assert current.status_code == 200
-        assert current.json()["principal"] == {"kind": "root", "role": "DEV"}
+        assert current.json()["principal"] == {
+            "kind": "root",
+            "role": "DEV",
+            "staff_id": None,
+            "full_name": None,
+        }
         assert logout.status_code == 204
         assert after_logout.status_code == 401
 

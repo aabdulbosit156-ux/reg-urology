@@ -1,13 +1,22 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Label, Spinner, TextInput } from "flowbite-react";
 import { CircleAlert, KeyRound, LockKeyhole, ShieldCheck } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
-import { ApiClientError, rootLogin } from "../api/auth";
+import {
+  ApiClientError,
+  createStaffChallenge,
+  exchangeStaffChallenge,
+  getStaffChallenge,
+  rootLogin,
+  type LoginChallenge,
+} from "../api/auth";
 
 export function RootLogin() {
   const queryClient = useQueryClient();
   const [token, setToken] = useState("");
+  const [mode, setMode] = useState<"staff" | "root">("staff");
+  const [challenge, setChallenge] = useState<LoginChallenge | null>(null);
   const login = useMutation({
     mutationFn: rootLogin,
     onSuccess: (session) => {
@@ -15,6 +24,27 @@ export function RootLogin() {
       queryClient.setQueryData(["auth", "session"], session);
     },
   });
+  const staffLogin = useMutation({
+    mutationFn: createStaffChallenge,
+    onSuccess: setChallenge,
+  });
+  const exchange = useMutation({
+    mutationFn: exchangeStaffChallenge,
+    onSuccess: (session) => queryClient.setQueryData(["auth", "session"], session),
+  });
+
+  useEffect(() => {
+    if (!challenge || ["rejected", "expired", "consumed"].includes(challenge.state)) return;
+    const timer = window.setInterval(() => {
+      void getStaffChallenge()
+        .then((current) => {
+          setChallenge((previous) => ({ ...current, deep_link: previous?.deep_link, qr_data_url: previous?.qr_data_url }));
+          if (current.state === "approved" && !exchange.isPending) exchange.mutate();
+        })
+        .catch(() => undefined);
+    }, 2_000);
+    return () => window.clearInterval(timer);
+  }, [challenge, exchange]);
 
   const error = login.error instanceof ApiClientError ? login.error : null;
 
@@ -64,10 +94,9 @@ export function RootLogin() {
             <span className="grid size-12 place-items-center rounded-xl bg-brand-50 text-brand-800">
               <KeyRound aria-hidden="true" className="size-6" />
             </span>
-            <h1 className="mt-5 text-2xl font-semibold tracking-tight">Root orqali kirish</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Railway yoki lokal muhitda o‘rnatilgan <code>ADMIN_TOKEN</code> qiymatini kiriting.
-            </p>
+            <div className="mt-5 flex gap-2" role="tablist"><Button aria-selected={mode === "staff"} color={mode === "staff" ? "primary" : "secondary"} onClick={() => setMode("staff")} role="tab" size="sm">Xodim</Button><Button aria-selected={mode === "root"} color={mode === "root" ? "primary" : "secondary"} onClick={() => setMode("root")} role="tab" size="sm">Root</Button></div>
+            <h1 className="mt-5 text-2xl font-semibold tracking-tight">{mode === "staff" ? "Telegram orqali kirish" : "Root orqali kirish"}</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-600">{mode === "staff" ? "Shaxsiy Telegram hisobingizda kirishni tasdiqlang." : <>Railway yoki lokal muhitda o‘rnatilgan <code>ADMIN_TOKEN</code> qiymatini kiriting.</>}</p>
 
             {error ? (
               <Alert className="mt-5" color="failure" icon={CircleAlert} role="alert">
@@ -78,7 +107,7 @@ export function RootLogin() {
               </Alert>
             ) : null}
 
-            <form className="mt-6 space-y-5" onSubmit={submit}>
+            {mode === "root" ? <form className="mt-6 space-y-5" onSubmit={submit}>
               <div>
                 <Label htmlFor="admin-token">Admin token</Label>
                 <TextInput
@@ -113,7 +142,7 @@ export function RootLogin() {
                   "Xavfsiz kirish"
                 )}
               </Button>
-            </form>
+            </form> : <div className="mt-6 space-y-4">{staffLogin.isError ? <Alert color="failure">{staffLogin.error.message}</Alert> : null}{exchange.isError ? <Alert color="failure">{exchange.error.message}</Alert> : null}{challenge ? <div className="text-center">{challenge.qr_data_url ? <img alt="Telegram kirish QR kodi" className="mx-auto size-48" src={challenge.qr_data_url} /> : null}<p className="mt-3 text-sm text-slate-600">Moslashtirish kodi</p><p className="mt-1 text-3xl font-semibold tracking-[0.2em] tabular-nums">{challenge.matching_code}</p>{challenge.deep_link ? <a className="mt-4 flex min-h-11 w-full items-center justify-center rounded-lg bg-brand-700 px-4 text-sm font-medium text-white hover:bg-brand-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-100" href={challenge.deep_link} rel="noreferrer" target="_blank">Telegramda ochish</a> : null}<p aria-live="polite" className="mt-3 text-xs text-slate-500">Holat: {challenge.state === "approved" ? "Tasdiqlandi" : challenge.state === "awaiting_confirmation" ? "Telegramda tasdiqlash kutilmoqda" : "Telegram ochilishi kutilmoqda"}</p></div> : <Button className="w-full" color="primary" disabled={staffLogin.isPending} onClick={() => staffLogin.mutate()}>{staffLogin.isPending ? "Tayyorlanmoqda…" : "Telegram bilan kirish"}</Button>}</div>}
 
             <p className="mt-5 text-xs leading-5 text-slate-500">
               Token brauzer xotirasiga saqlanmaydi va URL orqali yuborilmaydi.

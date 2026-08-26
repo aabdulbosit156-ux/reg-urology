@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     database_url: str | None = Field(default=None, validation_alias="DATABASE_URL")
     admin_token: SecretStr | None = Field(default=None, validation_alias="ADMIN_TOKEN")
     session_secret: SecretStr | None = Field(default=None, validation_alias="SESSION_SECRET")
+    app_encryption_key: SecretStr | None = Field(
+        default=None, validation_alias="APP_ENCRYPTION_KEY"
+    )
+    webhook_secret: SecretStr | None = Field(default=None, validation_alias="WEBHOOK_SECRET")
     public_base_url: str | None = Field(default=None, validation_alias="PUBLIC_BASE_URL")
     allowed_origins_value: str = Field(
         default="http://127.0.0.1:4173,http://localhost:5173",
@@ -61,6 +65,54 @@ class Settings(BaseSettings):
         le=86_400,
         validation_alias="ROOT_LOGIN_BLOCK_SECONDS",
     )
+    staff_session_ttl_seconds: int = Field(
+        default=28_800,
+        ge=1800,
+        le=86_400,
+        validation_alias="STAFF_SESSION_TTL_SECONDS",
+    )
+    staff_idle_timeout_seconds: int = Field(
+        default=1800,
+        ge=300,
+        le=7200,
+        validation_alias="STAFF_IDLE_TIMEOUT_SECONDS",
+    )
+    login_challenge_ttl_seconds: int = Field(
+        default=120,
+        ge=60,
+        le=600,
+        validation_alias="LOGIN_CHALLENGE_TTL_SECONDS",
+    )
+    invite_ttl_seconds: int = Field(
+        default=86_400,
+        ge=3600,
+        le=604_800,
+        validation_alias="INVITE_TTL_SECONDS",
+    )
+    booking_horizon_days: int = Field(
+        default=90,
+        ge=1,
+        le=365,
+        validation_alias="BOOKING_HORIZON_DAYS",
+    )
+    no_show_grace_minutes: int = Field(
+        default=30,
+        ge=0,
+        le=240,
+        validation_alias="NO_SHOW_GRACE_MINUTES",
+    )
+    worker_poll_seconds: float = Field(
+        default=1.0,
+        ge=0.2,
+        le=30,
+        validation_alias="WORKER_POLL_SECONDS",
+    )
+    inbox_payload_retention_hours: int = Field(
+        default=24,
+        ge=1,
+        le=720,
+        validation_alias="INBOX_PAYLOAD_RETENTION_HOURS",
+    )
 
     @cached_property
     def allowed_origins(self) -> frozenset[str]:
@@ -84,6 +136,8 @@ class Settings(BaseSettings):
                 ("DATABASE_URL", self.database_url),
                 ("ADMIN_TOKEN", self.admin_token),
                 ("SESSION_SECRET", self.session_secret),
+                ("APP_ENCRYPTION_KEY", self.app_encryption_key),
+                ("WEBHOOK_SECRET", self.webhook_secret),
                 ("PUBLIC_BASE_URL", self.public_base_url),
             )
             if value is None
@@ -93,6 +147,8 @@ class Settings(BaseSettings):
 
         assert self.admin_token is not None
         assert self.session_secret is not None
+        assert self.app_encryption_key is not None
+        assert self.webhook_secret is not None
         assert self.public_base_url is not None
         admin_token = self.admin_token.get_secret_value()
         session_secret = self.session_secret.get_secret_value()
@@ -100,6 +156,12 @@ class Settings(BaseSettings):
             raise ValueError("ADMIN_TOKEN kamida 32 byte bo'lishi kerak")
         if len(session_secret.encode()) < 32 or session_secret.startswith("replace-with-"):
             raise ValueError("SESSION_SECRET kamida 32 byte bo'lishi kerak")
+        encryption_key = self.app_encryption_key.get_secret_value()
+        webhook_secret = self.webhook_secret.get_secret_value()
+        if len(encryption_key.encode()) < 32 or encryption_key.startswith("replace-with-"):
+            raise ValueError("APP_ENCRYPTION_KEY kamida 32 byte bo'lishi kerak")
+        if len(webhook_secret.encode()) < 32 or webhook_secret.startswith("replace-with-"):
+            raise ValueError("WEBHOOK_SECRET kamida 32 byte bo'lishi kerak")
         public_url = urlsplit(self.public_base_url)
         if (
             public_url.scheme != "https"

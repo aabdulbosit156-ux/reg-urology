@@ -14,6 +14,7 @@ from regurolog_api.api.router import api_router
 from regurolog_api.config import AppEnvironment, Settings
 from regurolog_api.contracts import ErrorResponse, FieldError
 from regurolog_api.database import Database
+from regurolog_api.domain.validation import DomainValidationError
 from regurolog_api.errors import ApiError
 
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,64}$")
@@ -120,6 +121,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             code="VALIDATION_ERROR",
             message="Kiritilgan ma'lumotlarni tekshiring",
             field_errors=field_errors,
+        )
+
+    @application.exception_handler(DomainValidationError)
+    async def domain_validation_error_handler(
+        request: Request,
+        error: DomainValidationError,
+    ) -> JSONResponse:
+        return _error_response(
+            request,
+            status_code=422,
+            code="DOMAIN_VALIDATION_ERROR",
+            message=error.message,
+            field_errors=[FieldError(field=error.field, message=error.message)],
         )
 
     @application.exception_handler(StarletteHTTPException)

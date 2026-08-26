@@ -1,0 +1,170 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, Badge, Button, Drawer, DrawerItems, Label, Select, TextInput, Textarea } from "flowbite-react";
+import { CalendarPlus, PhoneCall, Search, X } from "lucide-react";
+import { FormEvent, useState } from "react";
+
+import { apiRequest } from "../api/client";
+import { EmptyState, QueryError, QueryLoading } from "./QueryState";
+
+interface PatientItem {
+  id: string;
+  full_name: string;
+  phone_masked: string;
+  possible_duplicate: boolean;
+  first_registered_at: string;
+  inquiry_id: string | null;
+  inquiry_status: string | null;
+  assigned_to_name: string | null;
+  ever_answered: boolean;
+  appointment_status: string | null;
+}
+
+interface PatientPage { items: PatientItem[]; total: number; page: number; page_size: number }
+interface Timeline { kind: string; title: string; occurred_at: string; detail?: string | null }
+interface PatientDetail extends PatientItem {
+  phone_e164: string | null;
+  telegram_user_id: number;
+  reason: string | null;
+  assigned_to: string | null;
+  next_followup_at: string | null;
+  version: number | null;
+  timeline: Timeline[];
+}
+interface Attempt { id: string; inquiry_id: string; phone_e164: string; sheet_id: string; sheet_number: string }
+interface ReceptionSheet { id: string; number: string; local_contact_date: string; patient_name: string; phone_e164: string; timezone: string; attempts: Array<Record<string, string | null>>; appointments: Array<Record<string, string | null>> }
+
+export function PatientsPage({ onBook }: { onBook: (inquiryId: string) => void }) {
+  const queryClient = useQueryClient();
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState<Attempt | null>(null);
+  const [outcome, setOutcome] = useState("answered");
+  const [note, setNote] = useState("");
+  const [sheetId, setSheetId] = useState<string | null>(null);
+  const patients = useQuery({
+    queryKey: ["patients", search],
+    queryFn: () => apiRequest<PatientPage>(`/patients?search=${encodeURIComponent(search)}`),
+    refetchInterval: 15_000,
+  });
+  const detail = useQuery({
+    queryKey: ["patient", selectedId],
+    queryFn: () => apiRequest<PatientDetail>(`/patients/${selectedId}`),
+    enabled: Boolean(selectedId),
+  });
+  const sheet = useQuery({
+    queryKey: ["reception-sheet", sheetId],
+    queryFn: () => apiRequest<ReceptionSheet>(`/reception-sheets/${sheetId}/print-data`),
+    enabled: Boolean(sheetId),
+  });
+  const startContact = useMutation({
+    mutationFn: (inquiryId: string) =>
+      apiRequest<Attempt>(`/inquiries/${inquiryId}/contact-attempts`, {
+        method: "POST",
+        headers: { "Idempotency-Key": crypto.randomUUID() },
+      }),
+    onSuccess: setAttempt,
+  });
+  const finishContact = useMutation({
+    mutationFn: () =>
+      apiRequest(`/contact-attempts/${attempt?.id}/finish`, {
+        method: "POST",
+        body: JSON.stringify({ outcome, note: note || null, next_followup_at: null }),
+      }),
+    onSuccess: async () => {
+      setAttempt(null);
+      setNote("");
+      await queryClient.invalidateQueries({ queryKey: ["patient", selectedId] });
+      await queryClient.invalidateQueries({ queryKey: ["patients"] });
+    },
+  });
+
+  function submitSearch(event: FormEvent) {
+    event.preventDefault();
+    setSearch(searchInput.trim());
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Bemorlar</h1>
+        <p className="mt-1 text-sm text-slate-600">Registratsiya, qayta aloqa va qabul tarixini boshqaring.</p>
+      </div>
+      <form className="flex gap-2" onSubmit={submitSearch} role="search">
+        <div className="max-w-xl flex-1">
+          <Label className="sr-only" htmlFor="patient-search">Ism yoki telefon bo‘yicha qidirish</Label>
+          <TextInput
+            id="patient-search"
+            onChange={(event) => setSearchInput(event.target.value)}
+            placeholder="Ism yoki telefon…"
+            value={searchInput}
+          />
+        </div>
+        <Button color="primary" type="submit"><Search aria-hidden="true" className="mr-2 size-4" />Qidirish</Button>
+      </form>
+      {patients.isPending ? <QueryLoading label="Bemorlar yuklanmoqda" /> : null}
+      {patients.isError ? <QueryError error={patients.error} retry={() => void patients.refetch()} /> : null}
+      {patients.data?.items.length === 0 ? <EmptyState title="Bemor topilmadi">Filter yoki qidiruvni o‘zgartirib ko‘ring.</EmptyState> : null}
+      {patients.data?.items.length ? (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full text-left text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-600">
+                <tr><th className="px-4 py-3">Bemor</th><th className="px-4 py-3">Telefon</th><th className="px-4 py-3">Murojaat</th><th className="px-4 py-3">Mas’ul</th><th className="px-4 py-3"><span className="sr-only">Amal</span></th></tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {patients.data.items.map((patient) => (
+                  <tr key={patient.id}>
+                    <td className="px-4 py-3 font-medium">{patient.full_name}{patient.possible_duplicate ? <Badge className="ml-2 inline-flex" color="warning">Dublikat ehtimoli</Badge> : null}</td>
+                    <td className="px-4 py-3 tabular-nums text-slate-600">{patient.phone_masked}</td>
+                    <td className="px-4 py-3"><Badge color={patient.inquiry_status === "open" ? "success" : "gray"}>{patient.inquiry_status === "open" ? "Ochiq" : "Yopilgan"}</Badge></td>
+                    <td className="px-4 py-3 text-slate-600">{patient.assigned_to_name ?? "Navbatda"}</td>
+                    <td className="px-4 py-3 text-right"><Button color="secondary" onClick={() => setSelectedId(patient.id)} size="xs">Ko‘rish</Button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="divide-y divide-slate-100 md:hidden">
+            {patients.data.items.map((patient) => (
+              <button className="block min-h-20 w-full p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600" key={patient.id} onClick={() => setSelectedId(patient.id)} type="button">
+                <div className="flex items-start justify-between gap-3"><span className="font-medium">{patient.full_name}</span><Badge color={patient.inquiry_status === "open" ? "success" : "gray"}>{patient.inquiry_status === "open" ? "Ochiq" : "Yopilgan"}</Badge></div>
+                <p className="mt-1 text-sm tabular-nums text-slate-600">{patient.phone_masked} · {patient.assigned_to_name ?? "Navbatda"}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <Drawer className="w-full max-w-xl" onClose={() => { setSelectedId(null); setAttempt(null); }} open={Boolean(selectedId)} position="right">
+        <div className="mb-5 flex items-center justify-between gap-3"><h2 className="text-xl font-semibold">Bemor kartochkasi</h2><Button aria-label="Kartochkani yopish" color="secondary" onClick={() => setSelectedId(null)} size="sm"><X aria-hidden="true" className="size-5" /></Button></div>
+        <DrawerItems>
+          {detail.isPending ? <QueryLoading /> : null}
+          {detail.isError ? <QueryError error={detail.error} retry={() => void detail.refetch()} /> : null}
+          {detail.data ? (
+            <div className="space-y-6">
+              <div><h3 className="text-lg font-semibold">{detail.data.full_name}</h3><p className="mt-1 text-sm tabular-nums text-slate-600">{detail.data.phone_e164}</p></div>
+              {detail.data.reason ? <div className="rounded-lg border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-medium uppercase text-slate-500">Murojaat sababi</p><p className="mt-1 text-sm">{detail.data.reason}</p></div> : null}
+              <div className="flex flex-wrap gap-2">
+                {detail.data.inquiry_id && detail.data.inquiry_status === "open" ? <Button color="primary" disabled={startContact.isPending} onClick={() => startContact.mutate(detail.data.inquiry_id!)}><PhoneCall aria-hidden="true" className="mr-2 size-4" />Qayta aloqa</Button> : null}
+                {detail.data.inquiry_id && detail.data.ever_answered ? <Button color="secondary" onClick={() => onBook(detail.data.inquiry_id!)}><CalendarPlus aria-hidden="true" className="mr-2 size-4" />Qabulga yozish</Button> : null}
+              </div>
+              {startContact.isError ? <QueryError error={startContact.error} /> : null}
+              {attempt ? (
+                <form className="space-y-4 rounded-xl border border-brand-100 bg-brand-50 p-4" onSubmit={(event) => { event.preventDefault(); finishContact.mutate(); }}>
+                  <div><p className="font-medium">Aloqa urinishi boshlandi</p><a className="mt-1 inline-block text-lg font-semibold text-brand-800 underline" href={`tel:${attempt.phone_e164}`}>{attempt.phone_e164}</a><button className="mt-1 block text-xs text-brand-800 underline" onClick={() => setSheetId(attempt.sheet_id)} type="button">Varaq: {attempt.sheet_number}</button></div>
+                  <div><Label htmlFor="contact-outcome">Natija</Label><Select id="contact-outcome" onChange={(event) => setOutcome(event.target.value)} value={outcome}><option value="answered">Bemor javob berdi</option><option value="no_answer">Javob bermadi</option><option value="busy">Band</option><option value="unreachable">Aloqa qilib bo‘lmadi</option><option value="wrong_number">Noto‘g‘ri raqam</option><option value="aborted">Qo‘ng‘iroq qilinmadi</option></Select></div>
+                  <div><Label htmlFor="contact-note">Suhbat izohi</Label><Textarea id="contact-note" onChange={(event) => setNote(event.target.value)} required={outcome === "answered"} rows={3} value={note} /></div>
+                  {finishContact.isError ? <Alert color="failure">{finishContact.error.message}</Alert> : null}
+                  <Button color="primary" disabled={finishContact.isPending} type="submit">Natijani saqlash</Button>
+                </form>
+              ) : null}
+              <section><h3 className="font-semibold">Tarix</h3><ol className="mt-3 space-y-3 border-l border-slate-200 pl-4">{detail.data.timeline.map((item, index) => <li key={`${item.occurred_at}-${index}`}><p className="text-sm font-medium">{item.title}</p><time className="text-xs text-slate-500">{new Date(item.occurred_at).toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" })}</time></li>)}</ol></section>
+            </div>
+          ) : null}
+        </DrawerItems>
+      </Drawer>
+      {sheetId ? <div aria-modal="true" className="fixed inset-0 z-50 grid place-items-end bg-slate-950/40 sm:place-items-center sm:p-4" role="dialog"><div className="print-sheet max-h-dvh w-full max-w-3xl overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:max-h-[90vh] sm:rounded-2xl"><div className="print-hidden flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Qabul varaqasi</h2><Button aria-label="Varaqani yopish" color="secondary" onClick={() => setSheetId(null)} size="sm"><X className="size-5" /></Button></div>{sheet.isPending ? <div className="mt-4"><QueryLoading /></div> : null}{sheet.isError ? <div className="mt-4"><QueryError error={sheet.error} /></div> : null}{sheet.data ? <div className="mt-5 space-y-5"><header className="border-b border-slate-300 pb-4"><p className="text-xs uppercase text-slate-500">RegUrolog qabul varaqasi</p><h3 className="mt-1 text-xl font-semibold">{sheet.data.number}</h3><p className="mt-2 text-sm">{sheet.data.patient_name} · {sheet.data.phone_e164}</p><p className="text-xs text-slate-500">{sheet.data.local_contact_date} · {sheet.data.timezone}</p></header><section><h4 className="font-semibold">Aloqa urinishlari</h4><div className="mt-2 space-y-2">{sheet.data.attempts.map((item) => <div className="rounded border border-slate-200 p-3 text-sm" key={String(item.id)}>{String(item.started_at)} · {String(item.outcome)}</div>)}</div></section><section><h4 className="font-semibold">Qabullar</h4><div className="mt-2 space-y-2">{sheet.data.appointments.length ? sheet.data.appointments.map((item) => <div className="rounded border border-slate-200 p-3 text-sm" key={String(item.id)}>{String(item.start_at)} · {String(item.status)}</div>) : <p className="text-sm text-slate-500">Hali qabul belgilanmagan.</p>}</div></section><Button className="print-hidden" color="primary" onClick={() => window.print()}>Chop etish / PDF</Button></div> : null}</div></div> : null}
+    </div>
+  );
+}

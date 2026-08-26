@@ -17,11 +17,33 @@ export default defineRailway((context) => {
       DATABASE_URL: database.env.DATABASE_URL,
       ADMIN_TOKEN: preserve(),
       SESSION_SECRET: preserve(),
+      APP_ENCRYPTION_KEY: preserve(),
+      WEBHOOK_SECRET: preserve(),
       PUBLIC_BASE_URL: preserve(),
       ALLOWED_ORIGINS: preserve(),
       COOKIE_SECURE: "true",
       TRUST_PROXY_HEADERS: "true",
       ROOT_SESSION_TTL_SECONDS: "3600",
+    },
+  });
+
+  const worker = service("worker", {
+    build: "uv sync --frozen",
+    start: "uv run --no-sync python -m regurolog_api.worker",
+    replicas: 1,
+    env: {
+      REGUROLOG_ENV: production ? "production" : "staging",
+      DATABASE_URL: database.env.DATABASE_URL,
+      ADMIN_TOKEN: preserve(),
+      SESSION_SECRET: preserve(),
+      APP_ENCRYPTION_KEY: preserve(),
+      WEBHOOK_SECRET: preserve(),
+      PUBLIC_BASE_URL: preserve(),
+      ALLOWED_ORIGINS: preserve(),
+      COOKIE_SECURE: "true",
+      TRUST_PROXY_HEADERS: "true",
+      WORKER_POLL_SECONDS: "1",
+      INBOX_PAYLOAD_RETENTION_HOURS: "24",
     },
   });
 
@@ -39,5 +61,5 @@ export default defineRailway((context) => {
     },
   });
 
-  return project("regurolog", { resources: [database, api, web] });
+  return project("regurolog", { resources: [database, api, worker, web] });
 });

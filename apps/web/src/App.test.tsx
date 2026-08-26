@@ -39,6 +39,16 @@ function mockAuthenticatedFetch() {
       if (url.endsWith("/health/live")) {
         return jsonResponse({ status: "ok", service: "regurolog-api", timezone: "Asia/Tashkent" });
       }
+      if (url.includes("/analytics/cohort")) {
+        return jsonResponse({
+          mode: "registration_cohort",
+          date_from: "2026-08-20",
+          date_to: "2026-08-26",
+          metrics: { inquiries: 2, contact_started: 1, answered: 1, booked: 1 },
+          daily: [{ date: "2026-08-26", inquiries: 2 }],
+        });
+      }
+      if (url.includes("/reports/no-shows")) return jsonResponse([]);
       throw new Error(`Unexpected request: ${url}`);
     }),
   );
@@ -56,7 +66,7 @@ describe("authenticated application shell", () => {
     mockAuthenticatedFetch();
     renderApp();
 
-    expect(await screen.findByRole("heading", { name: "Xavfsiz kirish poydevori" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Boshqaruv" })).toBeInTheDocument();
     expect(await screen.findByText("API ishlayapti")).toBeInTheDocument();
     expect(screen.getByText("DEV · Root sessiya")).toBeInTheDocument();
   });
@@ -90,16 +100,27 @@ describe("authenticated application shell", () => {
       if (url.endsWith("/health/live")) {
         return jsonResponse({ status: "ok", service: "regurolog-api", timezone: "Asia/Tashkent" });
       }
+      if (url.includes("/analytics/cohort")) {
+        return jsonResponse({
+          mode: "registration_cohort",
+          date_from: "2026-08-20",
+          date_to: "2026-08-26",
+          metrics: { inquiries: 0, contact_started: 0, answered: 0, booked: 0 },
+          daily: [],
+        });
+      }
+      if (url.includes("/reports/no-shows")) return jsonResponse([]);
       throw new Error(`Unexpected request: ${url}`);
     });
     vi.stubGlobal("fetch", fetchMock);
     renderApp();
 
+    await user.click(await screen.findByRole("tab", { name: "Root" }));
     const tokenInput = await screen.findByLabelText("Admin token");
     await user.type(tokenInput, "test-admin-token-never-store");
     await user.click(screen.getByRole("button", { name: "Xavfsiz kirish" }));
 
-    expect(await screen.findByRole("heading", { name: "Xavfsiz kirish poydevori" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Boshqaruv" })).toBeInTheDocument();
     expect(localStorage.length).toBe(0);
     const loginCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith("/auth/root"));
     const loginOptions = loginCall?.[1];
@@ -128,6 +149,7 @@ describe("authenticated application shell", () => {
     );
     renderApp();
 
+    await user.click(await screen.findByRole("tab", { name: "Root" }));
     await user.type(await screen.findByLabelText("Admin token"), "wrong");
     await user.click(screen.getByRole("button", { name: "Xavfsiz kirish" }));
 

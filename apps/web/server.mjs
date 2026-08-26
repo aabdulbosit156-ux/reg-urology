@@ -3,12 +3,14 @@ import { stat } from "node:fs/promises";
 import { createServer, request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { dirname, extname, join, resolve, sep } from "node:path";
+import { Transform } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 const serverDirectory = dirname(fileURLToPath(import.meta.url));
 const distributionDirectory = resolve(serverDirectory, "dist");
 const port = Number.parseInt(process.env.PORT ?? "8080", 10);
 const host = process.env.HOST ?? "0.0.0.0";
+const maxRequestBodyBytes = 2 * 1024 * 1024;
 
 function upstreamUrl() {
   if (process.env.API_UPSTREAM_URL) return new URL(process.env.API_UPSTREAM_URL);
@@ -65,6 +67,13 @@ function setSecurityHeaders(response) {
 }
 
 function proxyApi(clientRequest, clientResponse) {
+  const contentLength = Number.parseInt(clientRequest.headers["content-length"] ?? "0", 10);
+  if (Number.isFinite(contentLength) && contentLength > maxRequestBodyBytes) {
+    setSecurityHeaders(clientResponse);
+    clientResponse.writeHead(413, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+    clientResponse.end(JSON.stringify({ code: "REQUEST_TOO_LARGE", message: "So‘rov hajmi juda katta" }));
+    return;
+  }
   const requestUrl = new URL(clientRequest.url ?? "/", "http://localhost");
   const target = new URL(apiUpstream);
   target.pathname = requestUrl.pathname;
@@ -79,6 +88,7 @@ function proxyApi(clientRequest, clientResponse) {
   };
 
   const requestFunction = target.protocol === "https:" ? httpsRequest : httpRequest;
+  let bodyTooLarge = false;
   const upstreamRequest = requestFunction(
     target,
     { method: clientRequest.method, headers },
@@ -98,10 +108,23 @@ function proxyApi(clientRequest, clientResponse) {
       return;
     }
     setSecurityHeaders(clientResponse);
-    clientResponse.writeHead(502, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
-    clientResponse.end(JSON.stringify({ code: "API_UNAVAILABLE", message: "API bilan aloqa yo‘q" }));
+    clientResponse.writeHead(bodyTooLarge ? 413 : 502, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
+    clientResponse.end(JSON.stringify(bodyTooLarge ? { code: "REQUEST_TOO_LARGE", message: "So‘rov hajmi juda katta" } : { code: "API_UNAVAILABLE", message: "API bilan aloqa yo‘q" }));
   });
-  clientRequest.pipe(upstreamRequest);
+  let receivedBytes = 0;
+  const bodyLimiter = new Transform({
+    transform(chunk, _encoding, callback) {
+      receivedBytes += chunk.length;
+      if (receivedBytes > maxRequestBodyBytes) {
+        bodyTooLarge = true;
+        callback(new Error("Request body too large"));
+        return;
+      }
+      callback(null, chunk);
+    },
+  });
+  bodyLimiter.on("error", () => upstreamRequest.destroy());
+  clientRequest.pipe(bodyLimiter).pipe(upstreamRequest);
 }
 
 async function serveStatic(request, response) {
