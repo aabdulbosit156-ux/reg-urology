@@ -68,7 +68,8 @@ describe("authenticated application shell", () => {
 
     expect(await screen.findByRole("heading", { name: "Boshqaruv" })).toBeInTheDocument();
     expect(await screen.findByText("API ishlayapti")).toBeInTheDocument();
-    expect(screen.getByText("DEV · Root sessiya")).toBeInTheDocument();
+    expect(screen.getByText("Root sessiya")).toBeInTheDocument();
+    expect(screen.getByText("Dasturchi")).toBeInTheDocument();
   });
 
   it("opens and closes mobile navigation", async () => {
