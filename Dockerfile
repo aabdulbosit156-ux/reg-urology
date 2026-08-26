@@ -12,8 +12,7 @@ RUN npm install --global npm@10.9.8
 COPY package.json package-lock.json ./
 COPY apps/web/package.json ./apps/web/package.json
 
-RUN --mount=type=cache,id=npm,target=/root/.npm \
-    npm ci --omit=dev --ignore-scripts
+RUN npm ci --omit=dev --ignore-scripts
 
 COPY apps/web ./apps/web
 
