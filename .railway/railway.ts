@@ -56,6 +56,8 @@ export default defineRailway((context) => {
     env: {
       PORT: "8080",
       NODE_ENV: "production",
+      NPM_CONFIG_PRODUCTION: "false",
+      RAILPACK_NODE_NPM_INSTALL: "npm ci --include=dev",
       API_UPSTREAM_HOST: api.env.RAILWAY_PRIVATE_DOMAIN,
       API_UPSTREAM_PORT: api.env.PORT,
     },

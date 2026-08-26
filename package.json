@@ -17,6 +17,7 @@
     "build": "npm run build --workspace @regurolog/web",
     "check": "npm run typecheck --workspace @regurolog/web && npm run test:run --workspace @regurolog/web && npm run build --workspace @regurolog/web",
     "dev": "npm run dev --workspace @regurolog/web",
+    "start": "npm run start --workspace @regurolog/web",
     "test": "npm run test --workspace @regurolog/web"
   },
   "engines": {
