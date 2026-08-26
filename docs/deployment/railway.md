@@ -7,7 +7,7 @@ iborat: ochiq `web`, private `api`, private `worker` va Railway boshqaradigan `p
 
 | Servis | Build | Start | Healthcheck |
 |---|---|---|---|
-| `web` | `npm ci --include=dev && npm run build --workspace @regurolog/web` | `npm run start --workspace @regurolog/web` | `/healthz` |
+| `web` | install: `npm ci --include=dev`; build: `npm run build --workspace=@regurolog/web` | `npm run start --workspace=@regurolog/web` | `/healthz` |
 | `api` | `uv sync --frozen` | `uv run --no-sync uvicorn regurolog_api.main:app --app-dir apps/api/src --host 0.0.0.0 --port $PORT` | `/api/v1/health/ready` |
 | `worker` | `uv sync --frozen` | `uv run --no-sync python -m regurolog_api.worker` | admin paneldagi `/api/v1/health/system` heartbeat |
 | `postgres` | Railway managed PostgreSQL | Railway boshqaradi | Railway boshqaradi |

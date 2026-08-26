@@ -48,7 +48,7 @@ export default defineRailway((context) => {
   });
 
   const web = service("web", {
-    build: "npm ci --include=dev && npm run build --workspace @regurolog/web",
+    build: "npm run build --workspace=@regurolog/web",
     start: "npm run start --workspace @regurolog/web",
     healthcheck: "/healthz",
     healthcheckTimeout: 30,
