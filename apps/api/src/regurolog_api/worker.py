@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import signal
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
@@ -341,10 +342,21 @@ async def run() -> None:
         raise RuntimeError("DATABASE_URL worker uchun majburiy")
     database = Database(settings.database_url)
     worker = Worker(settings, database)
+    stop_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for shutdown_signal in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(shutdown_signal, stop_event.set)
+        except NotImplementedError:
+            # Windows local smoke runs do not implement loop signal handlers.
+            pass
     try:
-        while True:
+        while not stop_event.is_set():
             await worker.tick()
-            await asyncio.sleep(settings.worker_poll_seconds)
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=settings.worker_poll_seconds)
+            except TimeoutError:
+                pass
     finally:
         await database.close()
 

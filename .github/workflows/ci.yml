@@ -65,3 +65,21 @@ jobs:
       - run: node --check apps/web/server.mjs
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e --workspace @regurolog/web
+
+  containers:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: web
+            dockerfile: Dockerfile
+          - name: backend
+            dockerfile: Dockerfile.backend
+    steps:
+      - uses: actions/checkout@v7
+      - run: >-
+          docker build
+          --file "${{ matrix.dockerfile }}"
+          --tag "regurolog-${{ matrix.name }}:ci"
+          .

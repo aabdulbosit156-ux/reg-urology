@@ -5,14 +5,13 @@ export default defineRailway((context) => {
   const database = postgres("postgres");
 
   const api = service("api", {
-    build: "uv sync --frozen",
-    start:
-      "uv run --no-sync uvicorn regurolog_api.main:app --app-dir apps/api/src --host 0.0.0.0 --port $PORT",
     healthcheck: "/api/v1/health/ready",
     healthcheckTimeout: 30,
     replicas: 1,
     env: {
       PORT: "8000",
+      RAILWAY_DOCKERFILE_PATH: "/Dockerfile.backend",
+      REGUROLOG_PROCESS: "api",
       REGUROLOG_ENV: production ? "production" : "staging",
       DATABASE_URL: database.env.DATABASE_URL,
       ADMIN_TOKEN: preserve(),
@@ -28,10 +27,10 @@ export default defineRailway((context) => {
   });
 
   const worker = service("worker", {
-    build: "uv sync --frozen",
-    start: "uv run --no-sync python -m regurolog_api.worker",
     replicas: 1,
     env: {
+      RAILWAY_DOCKERFILE_PATH: "/Dockerfile.backend",
+      REGUROLOG_PROCESS: "worker",
       REGUROLOG_ENV: production ? "production" : "staging",
       DATABASE_URL: database.env.DATABASE_URL,
       ADMIN_TOKEN: preserve(),
@@ -48,16 +47,13 @@ export default defineRailway((context) => {
   });
 
   const web = service("web", {
-    build: "npm run build --workspace=@regurolog/web",
-    start: "npm run start --workspace @regurolog/web",
     healthcheck: "/healthz",
     healthcheckTimeout: 30,
     replicas: 1,
     env: {
       PORT: "8080",
       NODE_ENV: "production",
-      NPM_CONFIG_PRODUCTION: "false",
-      RAILPACK_NODE_NPM_INSTALL: "npm ci --include=dev",
+      RAILWAY_DOCKERFILE_PATH: "/Dockerfile",
       API_UPSTREAM_HOST: api.env.RAILWAY_PRIVATE_DOMAIN,
       API_UPSTREAM_PORT: api.env.PORT,
     },

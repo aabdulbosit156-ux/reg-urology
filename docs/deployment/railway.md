@@ -1,16 +1,23 @@
 # Railway deploy kontrakti
 
-RegUrolog lokal Docker yoki Docker Compose talab qilmaydi. Production to‘rtta Railway resursidan
-iborat: ochiq `web`, private `api`, private `worker` va Railway boshqaradigan `postgres`.
+RegUrolog lokal Docker yoki Docker Compose talab qilmaydi. Production image’lari Railway va CI’da
+repository Dockerfile’laridan quriladi. Topologiya to‘rtta Railway resursidan iborat: ochiq `web`,
+private `api`, private `worker` va Railway boshqaradigan `postgres`.
 
 ## Servislar
 
-| Servis | Build | Start | Healthcheck |
+| Servis | Dockerfile | Image entrypoint | Healthcheck |
 |---|---|---|---|
-| `web` | install: `npm ci --include=dev`; build: `npm run build --workspace=@regurolog/web` | `npm run start --workspace=@regurolog/web` | `/healthz` |
-| `api` | `uv sync --frozen` | `uv run --no-sync uvicorn regurolog_api.main:app --app-dir apps/api/src --host 0.0.0.0 --port $PORT` | `/api/v1/health/ready` |
-| `worker` | `uv sync --frozen` | `uv run --no-sync python -m regurolog_api.worker` | admin paneldagi `/api/v1/health/system` heartbeat |
+| `web` | `/Dockerfile` | `node apps/web/server.mjs` | `/healthz` |
+| `api` | `/Dockerfile.backend` | `REGUROLOG_PROCESS=api` | `/api/v1/health/ready` |
+| `worker` | `/Dockerfile.backend` | `REGUROLOG_PROCESS=worker` | admin paneldagi `/api/v1/health/system` heartbeat |
 | `postgres` | Railway managed PostgreSQL | Railway boshqaradi | Railway boshqaradi |
+
+`Dockerfile` frontendni alohida build stage’da yig‘ib, runtime image’ga faqat `dist` va Node serverni
+oladi. `Dockerfile.backend` locked production dependencylardan bitta non-root image yaratadi; o‘sha
+image API va workerda `REGUROLOG_PROCESS` orqali ikki xil process sifatida ishlaydi. Railway **Build
+Command** va **Custom Start Command** bo‘sh bo‘lishi kerak: build Dockerfile’dan, start esa image
+`CMD`idan olinadi.
 
 `web` `/api/*` so‘rovlarini `http://${{api.RAILWAY_PRIVATE_DOMAIN}}:${{api.PORT}}`ga uzatadi.
 Brauzer cookie’lari same-origin bo‘lib qoladi; `api` va `worker`ga public domain berilmaydi. Telegram
@@ -28,9 +35,18 @@ webhook ham public `web` orqali private `api`ga boradi.
 
 3. Bir xil GitHub repositoriyani `api`, `worker` va `web` servislariga source sifatida ulang. Root
    directory `/` bo‘lib qolsin: rootdagi `uv.lock` va `package-lock.json` build uchun kerak.
-4. Faqat `web` servisida public domain yarating. `api` va `worker` public domainlarini o‘chirilgan
+4. Har uch servisning **Build Command** va **Custom Start Command** maydonlaridagi eski qiymatlarni
+   tozalang. Variable mapping quyidagicha bo‘lsin:
+
+   - `web`: `RAILWAY_DOCKERFILE_PATH=/Dockerfile`;
+   - `api`: `RAILWAY_DOCKERFILE_PATH=/Dockerfile.backend`, `REGUROLOG_PROCESS=api`;
+   - `worker`: `RAILWAY_DOCKERFILE_PATH=/Dockerfile.backend`, `REGUROLOG_PROCESS=worker`.
+
+   `.railway/railway.ts` ham shu qiymatlarni source of truth sifatida saqlaydi. Oldingi Railpack
+   deploymentidan o‘tayotganda bir marta **Clear build cache** bilan redeploy qiling.
+5. Faqat `web` servisida public domain yarating. `api` va `worker` public domainlarini o‘chirilgan
    holda qoldiring.
-5. `api` va `worker`da bir xil sealed qiymatlarni kiriting:
+6. `api` va `worker`da bir xil sealed qiymatlarni kiriting:
 
    - `ADMIN_TOKEN`: kamida 32 random byte;
    - `SESSION_SECRET`: undan mustaqil kamida 32 random byte;
@@ -43,14 +59,14 @@ webhook ham public `web` orqali private `api`ga boradi.
 
    Secretlar servislar orasida Railway shared/reference variable orqali berilishi mumkin. Ularni
    Git, frontend environment yoki build logiga yozmang.
-6. Faqat `api` servisining **Pre-deploy Command** maydoniga kiriting:
+7. Faqat `api` servisining **Pre-deploy Command** maydoniga kiriting:
 
    ```bash
-   uv run --no-sync alembic -c apps/api/alembic.ini upgrade head
+   alembic -c apps/api/alembic.ini upgrade head
    ```
 
-7. Migratsiya muvaffaqiyatli tugagach `api`, bitta replica `worker`, so‘ng `web`ni deploy qiling.
-8. Root orqali botni ulang. Backend `getMe` bilan tekshiradi, tokenni encrypted saqlaydi va webhook
+8. Migratsiya muvaffaqiyatli tugagach `api`, bitta replica `worker`, so‘ng `web`ni deploy qiling.
+9. Root orqali botni ulang. Backend `getMe` bilan tekshiradi, tokenni encrypted saqlaydi va webhook
    URL/header secretni Telegramga o‘zi o‘rnatadi.
 
 Railway IaC hali pre-deploy commandni TypeScript authoring API orqali ifodalamaydi; shu bitta maydon

@@ -39,8 +39,10 @@ Vite `/api` so‘rovlarini `http://127.0.0.1:8000`ga proxy qiladi.
 
 ## Railway
 
-Production Dockerfile ishlatmaydi: Railway Railpack lockfilelardan native build qiladi. Topologiya:
-ochiq `web`, private `api`, private `worker`, managed `postgres`. Aniq build/start, secret,
-migration va rollback qadamlari [Railway deploy qo‘llanmasi](docs/deployment/railway.md)da; kundalik
-ekspluatatsiya [runbook](docs/operations/runbook.md)da; infra source of truth
+Production build Railpack auto-detectionga tayanmaydi: `web` uchun rootdagi `Dockerfile`, `api` va
+`worker` uchun `Dockerfile.backend` ishlatiladi. Lokal kompyuterga Docker o‘rnatish shart emas;
+container build CI va Railway’da bajariladi. Topologiya ochiq `web`, private `api`, private `worker`
+va managed `postgres`dan iborat. Aniq Dockerfile mapping, secret, migration va rollback qadamlari
+[Railway deploy qo‘llanmasi](docs/deployment/railway.md)da; kundalik ekspluatatsiya
+[runbook](docs/operations/runbook.md)da; infra source of truth
 [.railway/railway.ts](.railway/railway.ts).
