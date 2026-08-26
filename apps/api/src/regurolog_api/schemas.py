@@ -316,6 +316,9 @@ class AppointmentResponse(StrictModel):
     status: AppointmentStatus
     version: int
     outcome_pending: bool = False
+    patient_name: str | None = None
+    patient_phone: str | None = None
+    telegram_user_id: int | None = None
 
 
 class SettingsDraftRequest(StrictModel):

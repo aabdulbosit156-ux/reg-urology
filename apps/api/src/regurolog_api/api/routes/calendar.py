@@ -70,7 +70,11 @@ ALL_STAFF = {StaffRole.DEV, StaffRole.DIRECTOR, StaffRole.ADMIN}
 MANAGERS = {StaffRole.DEV, StaffRole.DIRECTOR}
 
 
-def _appointment_response(appointment: Appointment, settings: Settings) -> AppointmentResponse:
+def _appointment_response(
+    appointment: Appointment,
+    settings: Settings,
+    patient: Patient | None = None,
+) -> AppointmentResponse:
     outcome_pending = appointment.status == "scheduled" and appointment.start_at + timedelta(
         minutes=settings.no_show_grace_minutes
     ) <= datetime.now(UTC)
@@ -83,6 +87,9 @@ def _appointment_response(appointment: Appointment, settings: Settings) -> Appoi
         status=AppointmentStatus(appointment.status),
         version=appointment.version,
         outcome_pending=outcome_pending,
+        patient_name=patient.full_name if patient else None,
+        patient_phone=patient.phone_e164 if patient else None,
+        telegram_user_id=patient.telegram_user_id if patient else None,
     )
 
 
@@ -598,7 +605,13 @@ async def list_appointments(
     date_to: date | None = None,
 ) -> list[AppointmentResponse]:
     ensure_role(current, ALL_STAFF)
-    statement = select(Appointment).order_by(Appointment.start_at).limit(500)
+    statement = (
+        select(Appointment, Patient)
+        .join(Inquiry, Inquiry.id == Appointment.inquiry_id)
+        .join(Patient, Patient.id == Inquiry.patient_id)
+        .order_by(Appointment.start_at)
+        .limit(500)
+    )
     if doctor_id:
         statement = statement.where(Appointment.doctor_id == doctor_id)
     if date_from:
@@ -608,8 +621,8 @@ async def list_appointments(
         _, end = local_day_bounds_utc(date_to)
         statement = statement.where(Appointment.start_at < end)
     async with database.session_factory() as db_session:
-        appointments = list((await db_session.scalars(statement)).all())
-    return [_appointment_response(item, settings) for item in appointments]
+        rows = (await db_session.execute(statement)).all()
+    return [_appointment_response(appointment, settings, patient) for appointment, patient in rows]
 
 
 @router.post("/appointments", response_model=AppointmentResponse, status_code=201)

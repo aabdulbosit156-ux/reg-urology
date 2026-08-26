@@ -4,7 +4,12 @@ import { CalendarPlus, PhoneCall, Search, X } from "lucide-react";
 import { FormEvent, useState } from "react";
 
 import { apiRequest } from "../api/client";
+import { appointmentStatusLabel, contactOutcomeLabel, inquiryStatusLabel } from "../labels";
 import { EmptyState, QueryError, QueryLoading } from "./QueryState";
+
+function formatDateTime(value: string | null) {
+  return value ? new Date(value).toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" }) : "—";
+}
 
 interface PatientItem {
   id: string;
@@ -117,7 +122,7 @@ export function PatientsPage({ onBook }: { onBook: (inquiryId: string) => void }
                   <tr key={patient.id}>
                     <td className="px-4 py-3 font-medium">{patient.full_name}{patient.possible_duplicate ? <Badge className="ml-2 inline-flex" color="warning">Dublikat ehtimoli</Badge> : null}</td>
                     <td className="px-4 py-3 tabular-nums text-slate-600">{patient.phone_masked}</td>
-                    <td className="px-4 py-3"><Badge color={patient.inquiry_status === "open" ? "success" : "gray"}>{patient.inquiry_status === "open" ? "Ochiq" : "Yopilgan"}</Badge></td>
+                    <td className="px-4 py-3"><Badge color={patient.inquiry_status === "open" ? "success" : "gray"}>{patient.inquiry_status ? inquiryStatusLabel(patient.inquiry_status) : "Yopilgan"}</Badge></td>
                     <td className="px-4 py-3 text-slate-600">{patient.assigned_to_name ?? "Navbatda"}</td>
                     <td className="px-4 py-3 text-right"><Button color="secondary" onClick={() => setSelectedId(patient.id)} size="xs">Ko‘rish</Button></td>
                   </tr>
@@ -128,7 +133,7 @@ export function PatientsPage({ onBook }: { onBook: (inquiryId: string) => void }
           <div className="divide-y divide-slate-100 md:hidden">
             {patients.data.items.map((patient) => (
               <button className="block min-h-20 w-full p-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600" key={patient.id} onClick={() => setSelectedId(patient.id)} type="button">
-                <div className="flex items-start justify-between gap-3"><span className="font-medium">{patient.full_name}</span><Badge color={patient.inquiry_status === "open" ? "success" : "gray"}>{patient.inquiry_status === "open" ? "Ochiq" : "Yopilgan"}</Badge></div>
+                <div className="flex items-start justify-between gap-3"><span className="font-medium">{patient.full_name}</span><Badge color={patient.inquiry_status === "open" ? "success" : "gray"}>{patient.inquiry_status ? inquiryStatusLabel(patient.inquiry_status) : "Yopilgan"}</Badge></div>
                 <p className="mt-1 text-sm tabular-nums text-slate-600">{patient.phone_masked} · {patient.assigned_to_name ?? "Navbatda"}</p>
               </button>
             ))}
@@ -164,7 +169,7 @@ export function PatientsPage({ onBook }: { onBook: (inquiryId: string) => void }
           ) : null}
         </DrawerItems>
       </Drawer>
-      {sheetId ? <div aria-modal="true" className="fixed inset-0 z-50 grid place-items-end bg-slate-950/40 sm:place-items-center sm:p-4" role="dialog"><div className="print-sheet max-h-dvh w-full max-w-3xl overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:max-h-[90vh] sm:rounded-2xl"><div className="print-hidden flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Qabul varaqasi</h2><Button aria-label="Varaqani yopish" color="secondary" onClick={() => setSheetId(null)} size="sm"><X className="size-5" /></Button></div>{sheet.isPending ? <div className="mt-4"><QueryLoading /></div> : null}{sheet.isError ? <div className="mt-4"><QueryError error={sheet.error} /></div> : null}{sheet.data ? <div className="mt-5 space-y-5"><header className="border-b border-slate-300 pb-4"><p className="text-xs uppercase text-slate-500">RegUrolog qabul varaqasi</p><h3 className="mt-1 text-xl font-semibold">{sheet.data.number}</h3><p className="mt-2 text-sm">{sheet.data.patient_name} · {sheet.data.phone_e164}</p><p className="text-xs text-slate-500">{sheet.data.local_contact_date} · {sheet.data.timezone}</p></header><section><h4 className="font-semibold">Aloqa urinishlari</h4><div className="mt-2 space-y-2">{sheet.data.attempts.map((item) => <div className="rounded border border-slate-200 p-3 text-sm" key={String(item.id)}>{String(item.started_at)} · {String(item.outcome)}</div>)}</div></section><section><h4 className="font-semibold">Qabullar</h4><div className="mt-2 space-y-2">{sheet.data.appointments.length ? sheet.data.appointments.map((item) => <div className="rounded border border-slate-200 p-3 text-sm" key={String(item.id)}>{String(item.start_at)} · {String(item.status)}</div>) : <p className="text-sm text-slate-500">Hali qabul belgilanmagan.</p>}</div></section><Button className="print-hidden" color="primary" onClick={() => window.print()}>Chop etish / PDF</Button></div> : null}</div></div> : null}
+      {sheetId ? <div aria-modal="true" className="fixed inset-0 z-50 grid place-items-end bg-slate-950/40 sm:place-items-center sm:p-4" role="dialog"><div className="print-sheet max-h-dvh w-full max-w-3xl overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:max-h-[90vh] sm:rounded-2xl"><div className="print-hidden flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Qabul varaqasi</h2><Button aria-label="Varaqani yopish" color="secondary" onClick={() => setSheetId(null)} size="sm"><X className="size-5" /></Button></div>{sheet.isPending ? <div className="mt-4"><QueryLoading /></div> : null}{sheet.isError ? <div className="mt-4"><QueryError error={sheet.error} /></div> : null}{sheet.data ? <div className="mt-5 space-y-5"><header className="border-b border-slate-300 pb-4"><p className="text-xs uppercase text-slate-500">RegUrolog qabul varaqasi</p><h3 className="mt-1 text-xl font-semibold">{sheet.data.number}</h3><p className="mt-2 text-sm">{sheet.data.patient_name} · {sheet.data.phone_e164}</p><p className="text-xs text-slate-500">{sheet.data.local_contact_date} · {sheet.data.timezone}</p></header><section><h4 className="font-semibold">Aloqa urinishlari</h4><div className="mt-2 space-y-2">{sheet.data.attempts.map((item) => <div className="rounded border border-slate-200 p-3 text-sm" key={String(item.id)}>{formatDateTime(item.started_at)} · {contactOutcomeLabel(String(item.outcome))}</div>)}</div></section><section><h4 className="font-semibold">Qabullar</h4><div className="mt-2 space-y-2">{sheet.data.appointments.length ? sheet.data.appointments.map((item) => <div className="rounded border border-slate-200 p-3 text-sm" key={String(item.id)}>{formatDateTime(item.start_at)} · {appointmentStatusLabel(String(item.status))}</div>) : <p className="text-sm text-slate-500">Hali qabul belgilanmagan.</p>}</div></section><Button className="print-hidden" color="primary" onClick={() => window.print()}>Chop etish / PDF</Button></div> : null}</div></div> : null}
     </div>
   );
 }
