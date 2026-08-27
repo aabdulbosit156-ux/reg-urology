@@ -131,6 +131,7 @@ class PatientDetailResponse(StrictModel):
     inquiry_id: UUID | None
     inquiry_status: str | None
     close_reason: str | None = None
+    appointment_status: str | None = None
     reason: str | None
     assigned_to: UUID | None
     next_followup_at: datetime | None

@@ -208,6 +208,18 @@ async def patient_detail(
                     )
                 )
             )
+            active_appointment_status = (
+                await db_session.scalar(
+                    select(Appointment.status)
+                    .where(
+                        Appointment.inquiry_id == inquiry.id,
+                        Appointment.status.in_(["scheduled", "checked_in"]),
+                    )
+                    .limit(1)
+                )
+                if inquiry
+                else None
+            )
             timeline: list[TimelineItem] = []
             inquiry_ids = list(
                 (
@@ -307,6 +319,7 @@ async def patient_detail(
             inquiry_id=inquiry.id if inquiry else None,
             inquiry_status=inquiry.status if inquiry else None,
             close_reason=inquiry.close_reason if inquiry else None,
+            appointment_status=active_appointment_status,
             reason=inquiry.reason if inquiry else None,
             assigned_to=inquiry.assigned_to if inquiry else None,
             next_followup_at=inquiry.next_followup_at if inquiry else None,
@@ -491,6 +504,21 @@ async def close_inquiry(
                 raise ApiError(404, "INQUIRY_NOT_FOUND", "Murojaat topilmadi")
             if inquiry.version != payload.version:
                 raise ApiError(409, "VERSION_CONFLICT", "Murojaat yangilanib ulgurgan")
+            # Linear pipeline: an inquiry with a live appointment cannot be closed
+            # until that appointment is resolved (completed / cancelled / no-show),
+            # otherwise a closed inquiry would keep an active slot booked.
+            active_appointment = await db_session.scalar(
+                select(Appointment.id).where(
+                    Appointment.inquiry_id == inquiry.id,
+                    Appointment.status.in_(["scheduled", "checked_in"]),
+                )
+            )
+            if active_appointment is not None:
+                raise ApiError(
+                    409,
+                    "ACTIVE_APPOINTMENT_EXISTS",
+                    "Avval kalendardan faol qabulni bekor qiling yoki yakunlang",
+                )
             if current.role is StaffRole.ADMIN and inquiry.assigned_to != current.staff.id:  # type: ignore[union-attr]
                 raise ApiError(
                     403, "OBJECT_FORBIDDEN", "Faqat biriktirilgan murojaatni yopishingiz mumkin"

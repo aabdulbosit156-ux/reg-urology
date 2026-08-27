@@ -97,6 +97,10 @@ export function PatientsPage({ onBook, canManage = false }: { onBook: (target: {
       ? detail.data.close_reason ?? "other"
       : "open"
     : "open";
+  const hasActiveAppointment =
+    detail.data?.appointment_status === "scheduled" ||
+    detail.data?.appointment_status === "checked_in";
+  const closingBlocked = hasActiveAppointment && statusDraft !== "open";
   useEffect(() => {
     setStatusDraft(currentStatus);
     setStatusReason("");
@@ -222,14 +226,15 @@ export function PatientsPage({ onBook, canManage = false }: { onBook: (target: {
               {detail.data.inquiry_id ? (
                 <div className="rounded-xl border border-slate-200 bg-white p-4">
                   <div className="flex items-center justify-between gap-2">
-                    <div><p className="text-sm font-semibold">Status</p><p className="mt-0.5 text-xs text-slate-500">Hozirgi: {patientStatusLabel(detail.data.inquiry_status, detail.data.close_reason)}</p></div>
+                    <div><p className="text-sm font-semibold">Status</p><p className="mt-0.5 text-xs text-slate-500">Hozirgi: {patientStatusLabel(detail.data.inquiry_status, detail.data.close_reason)}{hasActiveAppointment ? ` · Qabul: ${appointmentStatusLabel(detail.data.appointment_status!)}` : ""}</p></div>
                     <RefreshCcw aria-hidden="true" className="size-5 text-slate-400" />
                   </div>
                   <div className="mt-3 space-y-3">
                     <div><Label htmlFor="status-select">Yangi status</Label><Select id="status-select" onChange={(event) => setStatusDraft(event.target.value)} value={statusDraft}>{PATIENT_STATUS_OPTIONS.filter((option) => option.value !== "open" || canManage || detail.data!.inquiry_status === "open").map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select></div>
+                    {closingBlocked ? <Alert color="warning">Bu bemorda faol qabul bor. Statusni yopish uchun avval kalendardan qabulni yakunlang yoki bekor qiling.</Alert> : null}
                     <div><Label htmlFor="status-reason">O‘zgarish sababi</Label><TextInput id="status-reason" onChange={(event) => setStatusReason(event.target.value)} placeholder="Nima uchun o‘zgartirilyapti?" value={statusReason} /></div>
                     {changeStatus.isError ? <Alert color="failure">{changeStatus.error.message}</Alert> : null}
-                    <Button color="primary" disabled={changeStatus.isPending || statusDraft === currentStatus || statusReason.trim().length < 2} onClick={() => changeStatus.mutate()}>Statusni saqlash</Button>
+                    <Button color="primary" disabled={changeStatus.isPending || statusDraft === currentStatus || statusReason.trim().length < 2 || closingBlocked} onClick={() => changeStatus.mutate()}>Statusni saqlash</Button>
                   </div>
                 </div>
               ) : null}
