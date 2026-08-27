@@ -20,6 +20,7 @@ from regurolog_api.contracts import (
     ContactAttemptOutcome,
     StaffRole,
     appointment_status_label,
+    close_reason_label,
     contact_outcome_label,
 )
 from regurolog_api.database import Database
@@ -27,6 +28,7 @@ from regurolog_api.domain.validation import mask_phone, normalize_full_name, nor
 from regurolog_api.errors import ApiError
 from regurolog_api.models import (
     Appointment,
+    AuditEvent,
     ContactAttempt,
     ContactNote,
     Inquiry,
@@ -86,6 +88,7 @@ async def list_patients(
     database: DatabaseDependency,
     search: str | None = Query(default=None, max_length=120),
     status: str | None = Query(default=None, pattern="^(open|closed)$"),
+    close_reason: str | None = Query(default=None, max_length=32),
     assigned_to: UUID | None = None,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=100),
@@ -103,6 +106,7 @@ async def list_patients(
             Patient,
             inquiry.c.id.label("inquiry_id"),
             inquiry.c.status.label("inquiry_status"),
+            inquiry.c.close_reason.label("close_reason"),
             StaffUser.full_name.label("assigned_name"),
             func.bool_or(ContactAttempt.outcome == "answered").label("ever_answered"),
             func.max(Appointment.status)
@@ -113,7 +117,9 @@ async def list_patients(
         .outerjoin(StaffUser, StaffUser.id == inquiry.c.assigned_to)
         .outerjoin(ContactAttempt, ContactAttempt.inquiry_id == inquiry.c.id)
         .outerjoin(Appointment, Appointment.inquiry_id == inquiry.c.id)
-        .group_by(Patient.id, inquiry.c.id, inquiry.c.status, StaffUser.full_name)
+        .group_by(
+            Patient.id, inquiry.c.id, inquiry.c.status, inquiry.c.close_reason, StaffUser.full_name
+        )
     )
     count_statement = select(func.count(Patient.id))
     filters = []
@@ -127,6 +133,8 @@ async def list_patients(
         )
     if status:
         filters.append(inquiry.c.status == status)
+    if close_reason:
+        filters.append(inquiry.c.close_reason == close_reason)
     if assigned_to:
         filters.append(inquiry.c.assigned_to == assigned_to)
     statement = statement.where(*filters)
@@ -151,6 +159,7 @@ async def list_patients(
                 first_registered_at=patient.first_registered_at,
                 inquiry_id=inquiry_id,
                 inquiry_status=inquiry_status,
+                close_reason=close_reason_value,
                 assigned_to_name=assigned_name,
                 ever_answered=bool(ever_answered),
                 appointment_status=appointment_status,
@@ -159,6 +168,7 @@ async def list_patients(
                 patient,
                 inquiry_id,
                 inquiry_status,
+                close_reason_value,
                 assigned_name,
                 ever_answered,
                 appointment_status,
@@ -241,6 +251,33 @@ async def patient_detail(
                     )
                     for appointment in appointments
                 )
+                status_events = list(
+                    (
+                        await db_session.scalars(
+                            select(AuditEvent)
+                            .where(
+                                AuditEvent.entity_type == "inquiry",
+                                AuditEvent.entity_id.in_([str(i) for i in inquiry_ids]),
+                                AuditEvent.action.in_(["inquiry.closed", "inquiry.reopened"]),
+                            )
+                            .order_by(AuditEvent.occurred_at.desc())
+                        )
+                    ).all()
+                )
+                for event in status_events:
+                    if event.action == "inquiry.closed":
+                        reason_code = str(event.changes.get("close_reason") or "")
+                        title = f"Status: yopildi — {close_reason_label(reason_code)}"
+                    else:
+                        title = "Status: qayta ochildi"
+                    timeline.append(
+                        TimelineItem(
+                            kind="status",
+                            title=title,
+                            occurred_at=event.occurred_at,
+                            detail=event.note,
+                        )
+                    )
             timeline.append(
                 TimelineItem(
                     kind="registration",
@@ -269,6 +306,7 @@ async def patient_detail(
             ever_answered=ever_answered,
             inquiry_id=inquiry.id if inquiry else None,
             inquiry_status=inquiry.status if inquiry else None,
+            close_reason=inquiry.close_reason if inquiry else None,
             reason=inquiry.reason if inquiry else None,
             assigned_to=inquiry.assigned_to if inquiry else None,
             next_followup_at=inquiry.next_followup_at if inquiry else None,
@@ -359,6 +397,7 @@ async def update_patient(
             ever_answered=ever_answered,
             inquiry_id=inquiry.id,
             inquiry_status=inquiry.status,
+            close_reason=inquiry.close_reason,
             reason=inquiry.reason,
             assigned_to=inquiry.assigned_to,
             next_followup_at=inquiry.next_followup_at,

@@ -60,6 +60,16 @@ _APPOINTMENT_STATUS_LABELS: Final[dict[AppointmentStatus, str]] = {
 }
 
 
+_CLOSE_REASON_LABELS: Final[dict[str, str]] = {
+    "attended": "Keldi",
+    "declined": "Rad etdi",
+    "unreachable": "Aloqasiz",
+    "duplicate": "Dublikat",
+    "cancelled": "Bekor qilingan",
+    "other": "Boshqa",
+}
+
+
 def contact_outcome_label(value: str) -> str:
     """Human-readable Uzbek label for a contact attempt outcome."""
 
@@ -67,6 +77,12 @@ def contact_outcome_label(value: str) -> str:
         return _CONTACT_OUTCOME_LABELS[ContactAttemptOutcome(value)]
     except ValueError:
         return value
+
+
+def close_reason_label(value: str) -> str:
+    """Human-readable Uzbek label for an inquiry close reason."""
+
+    return _CLOSE_REASON_LABELS.get(value, value)
 
 
 def appointment_status_label(value: str) -> str:

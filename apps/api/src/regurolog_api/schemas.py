@@ -100,6 +100,7 @@ class PatientListItem(StrictModel):
     first_registered_at: datetime
     inquiry_id: UUID | None
     inquiry_status: str | None
+    close_reason: str | None
     assigned_to_name: str | None
     ever_answered: bool
     appointment_status: str | None
@@ -129,6 +130,7 @@ class PatientDetailResponse(StrictModel):
     ever_answered: bool
     inquiry_id: UUID | None
     inquiry_status: str | None
+    close_reason: str | None = None
     reason: str | None
     assigned_to: UUID | None
     next_followup_at: datetime | None

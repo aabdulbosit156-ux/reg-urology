@@ -37,9 +37,16 @@ function timeLabel(value: string) {
 
 // Monday-first weekday labels; Sunday is the default clinic rest day.
 const WEEKDAYS = ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"];
+const WEEKDAYS_FULL = ["Dushanba", "Seshanba", "Chorshanba", "Payshanba", "Juma", "Shanba", "Yakshanba"];
+const MONTHS = ["yanvar", "fevral", "mart", "aprel", "may", "iyun", "iyul", "avgust", "sentyabr", "oktyabr", "noyabr", "dekabr"];
 
 function weekdayIndex(value: string) {
   return (new Date(`${value}T12:00:00Z`).getUTCDay() + 6) % 7; // 0=Mon … 6=Sun
+}
+
+function longDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return `${WEEKDAYS_FULL[weekdayIndex(value)]}, ${day}-${MONTHS[month - 1]} ${year}`;
 }
 
 function isRestDay(value: string) {
@@ -214,7 +221,10 @@ export function CalendarPage({ initialBooking, canCorrect = false }: { initialBo
           {view === "day" ? (
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="day-grid-title">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="font-semibold" id="day-grid-title">Kunlik jadval{date === todayIso ? <span className="ml-2 align-middle text-xs font-medium text-brand-700">Bugun</span> : null}</h2>
+                <div>
+                  <h2 className="text-lg font-semibold" id="day-grid-title">{longDate(date)}{date === todayIso ? <span className="ml-2 align-middle rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">Bugun</span> : null}</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Kunlik jadval · 15 daqiqalik oynalar</p>
+                </div>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
                   <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-brand-500" />Bo‘sh</span>
                   <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-amber-400" />Band</span>
