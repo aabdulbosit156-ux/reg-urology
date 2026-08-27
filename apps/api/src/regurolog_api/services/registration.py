@@ -487,7 +487,7 @@ class TelegramRegistrationService:
                 bot_id=bot_id,
                 telegram_user_id=telegram_user_id,
                 chat_id=chat_id,
-                step="CONSENT",
+                step="WAIT_FULL_NAME",
                 data={},
                 attribution_id=campaign.id if campaign else None,
                 attribution_kind=kind,
@@ -517,14 +517,13 @@ class TelegramRegistrationService:
                 reply_markup=inline_button("Yangi murojaat ochish", "new_inquiry_confirm"),
             )
             return
-        draft.step = "CONSENT"
+        draft.step = "WAIT_FULL_NAME"
         await enqueue_telegram_message(
             db_session,
-            idempotency_key=f"update:{bot_id}:{update_id}:consent",
+            idempotency_key=f"update:{bot_id}:{update_id}:name-prompt",
             bot_id=bot_id,
             chat_id=chat_id,
-            text=f"{messages['welcome']}\n\n{messages['consent']}",
-            reply_markup=inline_button("Roziman, davom etish", "consent_accept"),
+            text=messages["full_name_prompt"],
         )
 
     async def _commit_registration(

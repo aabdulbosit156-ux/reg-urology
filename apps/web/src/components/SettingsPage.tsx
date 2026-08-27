@@ -76,13 +76,13 @@ function BotSettings({ onSaved }: { onSaved: (message: string) => void }) {
 }
 
 function TemplateSettings({ onSaved }: { onSaved: (message: string) => void }) {
-  const [key, setKey] = useState("welcome");
-  const [value, setValue] = useState("Assalomu alaykum. Konsultatsiyaga murojaat qoldirish uchun davom eting.");
+  const [key, setKey] = useState("full_name_prompt");
+  const [value, setValue] = useState("Ism-familiyangizni yozing.");
   const [draft, setDraft] = useState<SettingsVersion | null>(null);
   const versions = useQuery({ queryKey: ["settings-versions"], queryFn: () => apiRequest<SettingsVersion[]>("/settings") });
   const create = useMutation({ mutationFn: () => apiRequest<SettingsVersion>("/settings", { method: "PATCH", body: JSON.stringify({ namespace: "bot_messages", payload: { [key]: value } }) }), onSuccess: setDraft });
   const publish = useMutation({ mutationFn: () => apiRequest<SettingsVersion>("/settings/publish", { method: "POST", body: JSON.stringify({ version_id: draft?.id }) }), onSuccess: () => { setDraft(null); onSaved("Bot matni publish qilindi"); void versions.refetch(); } });
-  const keys = ["welcome", "consent", "full_name_prompt", "phone_prompt", "phone_error", "registered", "reason_prompt", "finished", "already_registered", "appointment_confirmation", "rescheduled", "cancelled", "reminder", "generic_error"];
+  const keys = ["full_name_prompt", "phone_prompt", "phone_error", "registered", "reason_prompt", "finished", "already_registered", "appointment_confirmation", "rescheduled", "cancelled", "reminder", "generic_error"];
   return <section className="max-w-2xl rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Bot matnlari</h2><p className="mt-1 text-sm text-slate-600">Draftni ko‘rib chiqing, so‘ng publish qiling. Placeholderlar: {"{full_name}, {doctor_name}, {date}, {time}, {clinic_address}"}.</p><div className="mt-4 space-y-4"><div><Label htmlFor="template-key">Matn kaliti</Label><Select id="template-key" onChange={(event) => setKey(event.target.value)} value={key}>{keys.map((item) => <option key={item} value={item}>{item}</option>)}</Select></div><div><Label htmlFor="template-value">Matn</Label><Textarea id="template-value" onChange={(event) => setValue(event.target.value)} rows={4} value={value} /></div><div className="rounded-lg border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-medium uppercase text-slate-500">Preview</p><p className="mt-2 whitespace-pre-wrap text-sm">{value}</p></div>{create.isError ? <QueryError error={create.error} /> : null}{publish.isError ? <QueryError error={publish.error} /> : null}<div className="flex gap-2"><Button color="secondary" disabled={create.isPending} onClick={() => create.mutate()}>Draft saqlash</Button><Button color="primary" disabled={!draft || publish.isPending} onClick={() => publish.mutate()}>Publish</Button></div>{versions.data?.find((item) => item.namespace === "bot_messages" && item.state === "published") ? <p className="text-xs text-slate-500">Published versiya: {versions.data.find((item) => item.namespace === "bot_messages" && item.state === "published")?.version}</p> : null}</div></section>;
 }
 

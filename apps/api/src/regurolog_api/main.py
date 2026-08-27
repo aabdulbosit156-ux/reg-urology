@@ -52,13 +52,29 @@ def _frontend_directory() -> Path | None:
     return candidate if (candidate / "index.html").is_file() else None
 
 
+_STATIC_MEDIA_TYPES = {
+    ".webmanifest": "application/manifest+json",
+    ".json": "application/json",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+    ".webp": "image/webp",
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".woff2": "font/woff2",
+}
+
+
 def _static_response(path: Path) -> FileResponse:
-    cache = (
-        "no-cache"
-        if path.name == "index.html"
-        else "public, max-age=31536000, immutable"
+    # Only Vite's content-hashed assets are safe to cache forever; the shell,
+    # manifest and icons keep stable names so they must revalidate.
+    cached = path.parent.name == "assets"
+    cache = "public, max-age=31536000, immutable" if cached else "no-cache"
+    return FileResponse(
+        path,
+        media_type=_STATIC_MEDIA_TYPES.get(path.suffix.lower()),
+        headers={**_STATIC_SECURITY_HEADERS, "Cache-Control": cache},
     )
-    return FileResponse(path, headers={**_STATIC_SECURITY_HEADERS, "Cache-Control": cache})
 
 
 def _request_id(request: Request) -> str:

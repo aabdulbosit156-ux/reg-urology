@@ -73,16 +73,16 @@ export function DashboardPage({ session }: { session: AuthSession }) {
             {mode === "cohort" ? "Oxirgi 7 kun registratsiya cohorti" : "Oxirgi 7 kunlik o‘z faoliyatingiz"}
           </p>
         </div>
-        <Badge color="primary">Toshkent vaqti · UTC+5</Badge>
+        <Badge className="hidden sm:inline-flex" color="primary">Toshkent vaqti · UTC+5</Badge>
       </div>
-      <section aria-label="Asosiy ko‘rsatkichlar" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section aria-label="Asosiy ko‘rsatkichlar" className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {cards.map(([label, value, Icon]) => (
-          <article className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm" key={String(label)}>
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm text-slate-600">{String(label)}</p>
-              <Icon aria-hidden="true" className="size-5 text-brand-700" />
+          <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" key={String(label)}>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs leading-snug text-slate-600 sm:text-sm">{String(label)}</p>
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700"><Icon aria-hidden="true" className="size-4 sm:size-5" /></span>
             </div>
-            <p className="mt-3 text-3xl font-semibold tabular-nums">{Number(value ?? 0)}</p>
+            <p className="mt-2 text-2xl font-semibold tabular-nums sm:mt-3 sm:text-3xl">{Number(value ?? 0)}</p>
           </article>
         ))}
       </section>
