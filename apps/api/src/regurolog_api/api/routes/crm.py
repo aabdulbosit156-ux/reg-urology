@@ -15,7 +15,13 @@ from regurolog_api.api.dependencies import (
     require_principal,
 )
 from regurolog_api.config import Settings
-from regurolog_api.contracts import BUSINESS_TIMEZONE, ContactAttemptOutcome, StaffRole
+from regurolog_api.contracts import (
+    BUSINESS_TIMEZONE,
+    ContactAttemptOutcome,
+    StaffRole,
+    appointment_status_label,
+    contact_outcome_label,
+)
 from regurolog_api.database import Database
 from regurolog_api.domain.validation import mask_phone, normalize_full_name, normalize_uz_phone
 from regurolog_api.errors import ApiError
@@ -222,7 +228,7 @@ async def patient_detail(
                 timeline.extend(
                     TimelineItem(
                         kind="contact",
-                        title=f"Qayta aloqa: {attempt.outcome}",
+                        title=f"Qayta aloqa: {contact_outcome_label(attempt.outcome)}",
                         occurred_at=attempt.started_at,
                     )
                     for attempt in attempts
@@ -230,7 +236,7 @@ async def patient_detail(
                 timeline.extend(
                     TimelineItem(
                         kind="appointment",
-                        title=f"Qabul: {appointment.status}",
+                        title=f"Qabul: {appointment_status_label(appointment.status)}",
                         occurred_at=appointment.start_at,
                     )
                     for appointment in appointments

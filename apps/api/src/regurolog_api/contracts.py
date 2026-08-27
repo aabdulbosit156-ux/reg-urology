@@ -40,6 +40,44 @@ class AppointmentStatus(StrEnum):
     NO_SHOW = "no_show"
 
 
+_CONTACT_OUTCOME_LABELS: Final[dict[ContactAttemptOutcome, str]] = {
+    ContactAttemptOutcome.IN_PROGRESS: "Jarayonda",
+    ContactAttemptOutcome.ANSWERED: "Javob berdi",
+    ContactAttemptOutcome.NO_ANSWER: "Javob bermadi",
+    ContactAttemptOutcome.BUSY: "Band",
+    ContactAttemptOutcome.UNREACHABLE: "Aloqa yo‘q",
+    ContactAttemptOutcome.WRONG_NUMBER: "Noto‘g‘ri raqam",
+    ContactAttemptOutcome.ABORTED: "Qo‘ng‘iroq qilinmadi",
+    ContactAttemptOutcome.INTERRUPTED: "Uzilib qoldi",
+}
+
+_APPOINTMENT_STATUS_LABELS: Final[dict[AppointmentStatus, str]] = {
+    AppointmentStatus.SCHEDULED: "Rejalangan",
+    AppointmentStatus.CHECKED_IN: "Keldi",
+    AppointmentStatus.COMPLETED: "Yakunlandi",
+    AppointmentStatus.CANCELLED: "Bekor qilingan",
+    AppointmentStatus.NO_SHOW: "Kelmadi",
+}
+
+
+def contact_outcome_label(value: str) -> str:
+    """Human-readable Uzbek label for a contact attempt outcome."""
+
+    try:
+        return _CONTACT_OUTCOME_LABELS[ContactAttemptOutcome(value)]
+    except ValueError:
+        return value
+
+
+def appointment_status_label(value: str) -> str:
+    """Human-readable Uzbek label for an appointment status."""
+
+    try:
+        return _APPOINTMENT_STATUS_LABELS[AppointmentStatus(value)]
+    except ValueError:
+        return value
+
+
 class FieldError(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

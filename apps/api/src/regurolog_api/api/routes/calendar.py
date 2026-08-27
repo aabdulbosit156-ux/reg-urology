@@ -48,6 +48,7 @@ from regurolog_api.schemas import (
     AppointmentResponse,
     AppointmentTransitionRequest,
     AvailabilityResponse,
+    BookableInquiryResponse,
     CalendarDaySummary,
     CalendarSummaryResponse,
     DayOverrideRequest,
@@ -593,6 +594,44 @@ async def calendar_summary(
         date_to=date_to,
         days=days,
     )
+
+
+@router.get("/bookable-inquiries", response_model=list[BookableInquiryResponse])
+async def bookable_inquiries(
+    current: PrincipalDependency,
+    database: DatabaseDependency,
+) -> list[BookableInquiryResponse]:
+    """Open inquiries that answered but have no active appointment yet."""
+
+    ensure_role(current, ALL_STAFF)
+    answered = select(ContactAttempt.inquiry_id).where(ContactAttempt.outcome == "answered")
+    placed = select(Appointment.inquiry_id).where(
+        Appointment.status.in_(["scheduled", "checked_in"])
+    )
+    statement = (
+        select(Inquiry, Patient)
+        .join(Patient, Patient.id == Inquiry.patient_id)
+        .where(Inquiry.status == "open")
+        .where(Inquiry.id.in_(answered))
+        .where(Inquiry.id.not_in(placed))
+        .order_by(Inquiry.registered_at)
+        .limit(200)
+    )
+    # An ADMIN can only book inquiries assigned to them, so hide the rest.
+    if current.role is StaffRole.ADMIN and current.staff is not None:
+        statement = statement.where(Inquiry.assigned_to == current.staff.id)
+    async with database.session_factory() as db_session:
+        rows = (await db_session.execute(statement)).all()
+    return [
+        BookableInquiryResponse(
+            inquiry_id=inquiry.id,
+            patient_name=patient.full_name,
+            patient_phone=patient.phone_e164,
+            registered_at=inquiry.registered_at,
+            reason=inquiry.reason,
+        )
+        for inquiry, patient in rows
+    ]
 
 
 @router.get("/appointments", response_model=list[AppointmentResponse])

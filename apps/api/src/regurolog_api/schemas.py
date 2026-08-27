@@ -321,6 +321,16 @@ class AppointmentResponse(StrictModel):
     telegram_user_id: int | None = None
 
 
+class BookableInquiryResponse(StrictModel):
+    """An open, answered inquiry that has no active appointment yet."""
+
+    inquiry_id: UUID
+    patient_name: str
+    patient_phone: str
+    registered_at: datetime
+    reason: str | None = None
+
+
 class SettingsDraftRequest(StrictModel):
     namespace: str = Field(pattern=r"^[a-z][a-z0-9_.-]{1,63}$")
     payload: dict[str, Any]

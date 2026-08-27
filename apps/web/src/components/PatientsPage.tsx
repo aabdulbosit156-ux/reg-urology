@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, Drawer, DrawerItems, Label, Select, TextInput, Textarea } from "flowbite-react";
-import { CalendarPlus, PhoneCall, Search, X } from "lucide-react";
+import { CalendarCheck, CalendarPlus, FileText, Phone, PhoneCall, Search, Send, UserPlus, X } from "lucide-react";
 import { FormEvent, useState } from "react";
 
 import { apiRequest } from "../api/client";
@@ -38,7 +38,7 @@ interface PatientDetail extends PatientItem {
 interface Attempt { id: string; inquiry_id: string; phone_e164: string; sheet_id: string; sheet_number: string }
 interface ReceptionSheet { id: string; number: string; local_contact_date: string; patient_name: string; phone_e164: string; timezone: string; attempts: Array<Record<string, string | null>>; appointments: Array<Record<string, string | null>> }
 
-export function PatientsPage({ onBook }: { onBook: (inquiryId: string) => void }) {
+export function PatientsPage({ onBook }: { onBook: (target: { inquiryId: string; name: string; phone: string }) => void }) {
   const queryClient = useQueryClient();
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
@@ -148,11 +148,25 @@ export function PatientsPage({ onBook }: { onBook: (inquiryId: string) => void }
           {detail.isError ? <QueryError error={detail.error} retry={() => void detail.refetch()} /> : null}
           {detail.data ? (
             <div className="space-y-6">
-              <div><h3 className="text-lg font-semibold">{detail.data.full_name}</h3><p className="mt-1 text-sm tabular-nums text-slate-600">{detail.data.phone_e164}</p></div>
-              {detail.data.reason ? <div className="rounded-lg border border-slate-200 bg-slate-50 p-4"><p className="text-xs font-medium uppercase text-slate-500">Murojaat sababi</p><p className="mt-1 text-sm">{detail.data.reason}</p></div> : null}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-semibold">{detail.data.full_name}</h3>
+                    <div className="mt-2 space-y-1.5 text-sm">
+                      {detail.data.phone_e164 ? <a className="inline-flex items-center gap-2 text-brand-800 hover:underline" href={`tel:${detail.data.phone_e164}`}><Phone aria-hidden="true" className="size-4" /><span className="tabular-nums">{detail.data.phone_e164}</span></a> : <span className="inline-flex items-center gap-2 text-slate-600"><Phone aria-hidden="true" className="size-4" /><span className="tabular-nums">{detail.data.phone_masked}</span></span>}
+                      {detail.data.telegram_user_id ? <a className="flex items-center gap-2 text-brand-800 hover:underline" href={`tg://user?id=${detail.data.telegram_user_id}`} rel="noreferrer"><Send aria-hidden="true" className="size-4" />Telegram profili</a> : null}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1.5">
+                    {detail.data.inquiry_status ? <Badge color={detail.data.inquiry_status === "open" ? "success" : "gray"}>{inquiryStatusLabel(detail.data.inquiry_status)}</Badge> : null}
+                    {detail.data.possible_duplicate ? <Badge color="warning">Dublikat ehtimoli</Badge> : null}
+                  </div>
+                </div>
+              </div>
+              {detail.data.reason ? <div className="flex gap-3 rounded-xl border border-slate-200 bg-white p-4"><FileText aria-hidden="true" className="size-5 shrink-0 text-slate-400" /><div><p className="text-xs font-medium uppercase tracking-wide text-slate-500">Murojaat sababi</p><p className="mt-1 text-sm">{detail.data.reason}</p></div></div> : null}
               <div className="flex flex-wrap gap-2">
                 {detail.data.inquiry_id && detail.data.inquiry_status === "open" ? <Button color="primary" disabled={startContact.isPending} onClick={() => startContact.mutate(detail.data.inquiry_id!)}><PhoneCall aria-hidden="true" className="mr-2 size-4" />Qayta aloqa</Button> : null}
-                {detail.data.inquiry_id && detail.data.ever_answered ? <Button color="secondary" onClick={() => onBook(detail.data.inquiry_id!)}><CalendarPlus aria-hidden="true" className="mr-2 size-4" />Qabulga yozish</Button> : null}
+                {detail.data.inquiry_id && detail.data.ever_answered ? <Button color="secondary" onClick={() => onBook({ inquiryId: detail.data.inquiry_id!, name: detail.data.full_name, phone: detail.data.phone_e164 ?? detail.data.phone_masked })}><CalendarPlus aria-hidden="true" className="mr-2 size-4" />Qabulga yozish</Button> : null}
               </div>
               {startContact.isError ? <QueryError error={startContact.error} /> : null}
               {attempt ? (
@@ -164,7 +178,7 @@ export function PatientsPage({ onBook }: { onBook: (inquiryId: string) => void }
                   <Button color="primary" disabled={finishContact.isPending} type="submit">Natijani saqlash</Button>
                 </form>
               ) : null}
-              <section><h3 className="font-semibold">Tarix</h3><ol className="mt-3 space-y-3 border-l border-slate-200 pl-4">{detail.data.timeline.map((item, index) => <li key={`${item.occurred_at}-${index}`}><p className="text-sm font-medium">{item.title}</p><time className="text-xs text-slate-500">{new Date(item.occurred_at).toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" })}</time></li>)}</ol></section>
+              <section><h3 className="font-semibold">Tarix</h3><ol className="mt-4 space-y-4">{detail.data.timeline.map((item, index) => { const Icon = item.kind === "contact" ? PhoneCall : item.kind === "appointment" ? CalendarCheck : UserPlus; const tone = item.kind === "contact" ? "bg-sky-100 text-sky-700" : item.kind === "appointment" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"; return <li className="flex gap-3" key={`${item.occurred_at}-${index}`}><span className={`grid size-8 shrink-0 place-items-center rounded-full ${tone}`}><Icon aria-hidden="true" className="size-4" /></span><div className="min-w-0 pt-0.5"><p className="text-sm font-medium">{item.title}</p><time className="text-xs text-slate-500">{new Date(item.occurred_at).toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" })}</time></div></li>; })}</ol></section>
             </div>
           ) : null}
         </DrawerItems>
