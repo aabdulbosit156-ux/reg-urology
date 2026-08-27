@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import distinct, exists, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +30,7 @@ from regurolog_api.models import (
     Appointment,
     AppointmentEvent,
     AttributionEvent,
+    AuditEvent,
     BotConnection,
     Campaign,
     ContactAttempt,
@@ -39,6 +40,7 @@ from regurolog_api.models import (
     StaffUser,
 )
 from regurolog_api.schemas import (
+    ActivityLogItem,
     AnalyticsResponse,
     CampaignCreateRequest,
     CampaignResponse,
@@ -46,6 +48,7 @@ from regurolog_api.schemas import (
     SettingsDraftRequest,
     SettingsPublishRequest,
     SettingsVersionResponse,
+    StaffActivityStat,
 )
 from regurolog_api.services.audit import add_audit
 from regurolog_api.services.templates import DEFAULT_BOT_MESSAGES
@@ -795,4 +798,109 @@ async def no_show_report(
             rescheduled=bool(was_rescheduled),
         )
         for appointment, patient, operator_name, source, was_rescheduled in rows
+    ]
+
+
+def _safe_uuid(value: str | None) -> UUID | None:
+    if not value:
+        return None
+    try:
+        return UUID(value)
+    except ValueError:
+        return None
+
+
+@router.get("/activity/staff-stats", response_model=list[StaffActivityStat])
+async def staff_activity_stats(
+    current: PrincipalDependency, database: DatabaseDependency
+) -> list[StaffActivityStat]:
+    """Per-staff totals: appointments booked and audit actions performed."""
+
+    ensure_role(current, MANAGERS)
+    async with database.session_factory() as db_session:
+        appointment_rows = (
+            await db_session.execute(
+                select(Appointment.created_by, func.count(Appointment.id))
+                .where(Appointment.created_by.is_not(None))
+                .group_by(Appointment.created_by)
+            )
+        ).all()
+        action_rows = (
+            await db_session.execute(
+                select(AuditEvent.actor_id, func.count(AuditEvent.id))
+                .where(AuditEvent.actor_kind == "staff", AuditEvent.actor_id.is_not(None))
+                .group_by(AuditEvent.actor_id)
+            )
+        ).all()
+        staff = list(
+            (await db_session.scalars(select(StaffUser).order_by(StaffUser.full_name))).all()
+        )
+    appointment_map = {row[0]: int(row[1]) for row in appointment_rows}
+    action_map = {row[0]: int(row[1]) for row in action_rows}
+    return [
+        StaffActivityStat(
+            staff_id=member.id,
+            full_name=member.full_name,
+            role=StaffRole(member.role),
+            state=member.state,
+            appointments_created=appointment_map.get(member.id, 0),
+            actions=action_map.get(str(member.id), 0),
+        )
+        for member in staff
+    ]
+
+
+@router.get("/activity/logs", response_model=list[ActivityLogItem])
+async def activity_logs(
+    current: PrincipalDependency,
+    database: DatabaseDependency,
+    actor_id: UUID | None = None,
+    limit: int = Query(default=100, ge=1, le=200),
+) -> list[ActivityLogItem]:
+    """Recent audit trail, newest first, optionally filtered by one staff actor."""
+
+    ensure_role(current, MANAGERS)
+    filters = []
+    if actor_id is not None:
+        filters.append(AuditEvent.actor_id == str(actor_id))
+    async with database.session_factory() as db_session:
+        events = list(
+            (
+                await db_session.scalars(
+                    select(AuditEvent)
+                    .where(*filters)
+                    .order_by(AuditEvent.occurred_at.desc())
+                    .limit(limit)
+                )
+            ).all()
+        )
+        staff_uuids = [
+            parsed
+            for event in events
+            if event.actor_kind == "staff"
+            and (parsed := _safe_uuid(event.actor_id)) is not None
+        ]
+        names: dict[str, str] = {}
+        if staff_uuids:
+            name_rows = (
+                await db_session.execute(
+                    select(StaffUser.id, StaffUser.full_name).where(StaffUser.id.in_(staff_uuids))
+                )
+            ).all()
+            names = {str(row[0]): row[1] for row in name_rows}
+    return [
+        ActivityLogItem(
+            id=event.id,
+            occurred_at=event.occurred_at,
+            actor_kind=event.actor_kind,
+            actor_name=(
+                names.get(event.actor_id)
+                if event.actor_kind == "staff" and event.actor_id
+                else None
+            ),
+            action=event.action,
+            entity_type=event.entity_type,
+            note=event.note,
+        )
+        for event in events
     ]

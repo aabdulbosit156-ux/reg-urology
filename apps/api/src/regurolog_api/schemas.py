@@ -373,3 +373,22 @@ class NoShowReportItem(StrictModel):
 class WebhookResponse(StrictModel):
     accepted: bool
     duplicate: bool
+
+
+class ActivityLogItem(StrictModel):
+    id: UUID
+    occurred_at: datetime
+    actor_kind: str
+    actor_name: str | None = None
+    action: str
+    entity_type: str
+    note: str | None = None
+
+
+class StaffActivityStat(StrictModel):
+    staff_id: UUID
+    full_name: str
+    role: StaffRole
+    state: str
+    appointments_created: int
+    actions: int

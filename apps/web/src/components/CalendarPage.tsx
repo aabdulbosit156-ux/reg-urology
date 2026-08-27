@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, Label, Select, TextInput } from "flowbite-react";
-import { CalendarOff, ChevronLeft, ChevronRight, Clock3, Phone, Send, UserCheck } from "lucide-react";
+import { CalendarOff, ChevronLeft, ChevronRight, Clock3, GripVertical, Phone, Send, UserCheck } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 
 import { ApiClientError, apiRequest } from "../api/client";
@@ -84,6 +84,8 @@ export function CalendarPage({ initialBooking, canCorrect = false }: { initialBo
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
   const [bookingTarget, setBookingTarget] = useState<BookingTarget | null>(initialBooking ?? null);
   const [needsPatient, setNeedsPatient] = useState(false);
+  const [dragInquiry, setDragInquiry] = useState<BookableInquiry | null>(null);
+  const [dragOverStart, setDragOverStart] = useState<string | null>(null);
   const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null);
   const [rescheduleReason, setRescheduleReason] = useState("Bemor bilan kelishildi");
   const [correctionTarget, setCorrectionTarget] = useState<Appointment | null>(null);
@@ -240,7 +242,19 @@ export function CalendarPage({ initialBooking, canCorrect = false }: { initialBo
                 </div>
               ) : null}
               <div className="mt-4 hidden grid-cols-4 gap-2 sm:grid md:grid-cols-6 xl:grid-cols-8">
-                {availability.data?.slots.map((slot) => <button className={`min-h-14 rounded-lg border px-2 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 ${slot.available ? "border-brand-200 bg-brand-50 text-brand-800 hover:border-brand-400 hover:bg-brand-100" : slot.state === "occupied" ? "cursor-not-allowed border-amber-200 bg-amber-50 text-amber-700" : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"}`} disabled={!slot.available} key={slot.start_at} onClick={() => chooseSlot(slot)} type="button"><span className="block tabular-nums">{timeLabel(slot.start_at)}</span><span className="text-[10px] font-normal">{slot.available ? "Bo‘sh" : slot.state === "occupied" ? "Band" : "Yopiq"}</span></button>)}
+                {availability.data?.slots.map((slot) => {
+                  const isOver = Boolean(dragInquiry) && dragOverStart === slot.start_at;
+                  return <button
+                    className={`min-h-14 rounded-lg border px-2 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 ${slot.available ? (isOver ? "border-brand-500 bg-brand-100 text-brand-900 ring-2 ring-brand-400" : dragInquiry ? "border-dashed border-brand-400 bg-brand-50 text-brand-800" : "border-brand-200 bg-brand-50 text-brand-800 hover:border-brand-400 hover:bg-brand-100") : slot.state === "occupied" ? "cursor-not-allowed border-amber-200 bg-amber-50 text-amber-700" : "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"}`}
+                    disabled={!slot.available}
+                    key={slot.start_at}
+                    onClick={() => chooseSlot(slot)}
+                    onDragOver={(event) => { if (dragInquiry && slot.available) { event.preventDefault(); setDragOverStart(slot.start_at); } }}
+                    onDragLeave={() => setDragOverStart((current) => (current === slot.start_at ? null : current))}
+                    onDrop={(event) => { event.preventDefault(); if (dragInquiry && slot.available) { setBookingTarget({ inquiryId: dragInquiry.inquiry_id, name: dragInquiry.patient_name, phone: dragInquiry.patient_phone }); setSelectedSlot(slot); setNeedsPatient(false); setDragInquiry(null); setDragOverStart(null); } }}
+                    type="button"
+                  ><span className="block tabular-nums">{timeLabel(slot.start_at)}</span><span className="text-[10px] font-normal">{slot.available ? "Bo‘sh" : slot.state === "occupied" ? "Band" : "Yopiq"}</span></button>;
+                })}
               </div>
               <div className="mt-4 space-y-2 sm:hidden" aria-label="Mobil agenda">
                 {availability.data?.slots.map((slot) => <button className={`flex min-h-14 w-full items-center justify-between rounded-lg border px-4 text-left transition ${slot.available ? "border-brand-200 bg-brand-50 hover:bg-brand-100" : slot.state === "occupied" ? "border-amber-200 bg-amber-50 text-amber-700" : "border-slate-200 bg-slate-50 text-slate-500"}`} disabled={!slot.available} key={slot.start_at} onClick={() => chooseSlot(slot)} type="button"><span className="flex items-center gap-2 font-medium tabular-nums"><Clock3 className="size-4" />{timeLabel(slot.start_at)}</span><Badge color={slot.available ? "success" : slot.state === "occupied" ? "warning" : "gray"}>{slot.available ? "Bo‘sh" : slot.state === "occupied" ? "Band" : "Yopiq"}</Badge></button>)}
@@ -250,11 +264,11 @@ export function CalendarPage({ initialBooking, canCorrect = false }: { initialBo
           {view === "day" && !rescheduleTarget ? (
             <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-labelledby="bookable-title">
               <div className="flex items-center justify-between gap-2"><h2 className="font-semibold" id="bookable-title">Joylashtirilmagan murojaatlar</h2>{bookable.data ? <Badge color="gray">{bookable.data.length}</Badge> : null}</div>
-              <p className="mt-1 text-sm text-slate-500">Javob bergan, hali qabulga yozilmagan bemorlar. Birini tanlang, so‘ng yuqoridan bo‘sh slotni bosing.</p>
+              <p className="mt-1 text-sm text-slate-500">Javob bergan, hali qabulga yozilmagan bemorlar. Birini tanlang yoki to‘g‘ridan-to‘g‘ri bo‘sh slotga sudrab tashlang.</p>
               {bookable.isPending ? <div className="mt-3"><QueryLoading /></div> : null}
               {bookable.isError ? <div className="mt-3"><QueryError error={bookable.error} retry={() => void bookable.refetch()} /></div> : null}
               {bookable.data?.length === 0 ? <div className="mt-3"><EmptyState title="Ro‘yxat bo‘sh">Barcha javob bergan bemorlar qabulga yozilgan.</EmptyState></div> : null}
-              {bookable.data?.length ? <ul className="mt-3 divide-y divide-slate-100">{bookable.data.map((item) => { const selected = bookingTarget?.inquiryId === item.inquiry_id; return <li className="flex flex-wrap items-center justify-between gap-3 py-3" key={item.inquiry_id}><div className="min-w-0"><p className="font-medium">{item.patient_name}</p><p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-500"><span className="tabular-nums">{item.patient_phone}</span>{item.reason ? <span className="truncate">· {item.reason}</span> : null}</p></div><Button color={selected ? "primary" : "secondary"} onClick={() => { setBookingTarget({ inquiryId: item.inquiry_id, name: item.patient_name, phone: item.patient_phone }); setNeedsPatient(false); }} size="xs">{selected ? <><UserCheck aria-hidden="true" className="mr-1 size-4" />Tanlangan</> : "Tanlash"}</Button></li>; })}</ul> : null}
+              {bookable.data?.length ? <ul className="mt-3 divide-y divide-slate-100">{bookable.data.map((item) => { const selected = bookingTarget?.inquiryId === item.inquiry_id; return <li className={`flex flex-wrap items-center justify-between gap-3 rounded-lg py-3 pl-1 pr-1 transition sm:cursor-grab sm:active:cursor-grabbing ${dragInquiry?.inquiry_id === item.inquiry_id ? "bg-brand-50 opacity-60" : ""}`} draggable key={item.inquiry_id} onDragEnd={() => { setDragInquiry(null); setDragOverStart(null); }} onDragStart={() => { setDragInquiry(item); setNeedsPatient(false); }}><div className="flex min-w-0 items-center gap-2"><GripVertical aria-hidden="true" className="hidden size-4 shrink-0 text-slate-300 sm:block" /><div className="min-w-0"><p className="font-medium">{item.patient_name}</p><p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-500"><span className="tabular-nums">{item.patient_phone}</span>{item.reason ? <span className="truncate">· {item.reason}</span> : null}</p></div></div><Button color={selected ? "primary" : "secondary"} onClick={() => { setBookingTarget({ inquiryId: item.inquiry_id, name: item.patient_name, phone: item.patient_phone }); setNeedsPatient(false); }} size="xs">{selected ? <><UserCheck aria-hidden="true" className="mr-1 size-4" />Tanlangan</> : "Tanlash"}</Button></li>; })}</ul> : null}
             </section>
           ) : null}
           {view === "week" ? <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">{Array.from({ length: 7 }, (_, index) => shiftDate(date, index)).map((day) => { const items = appointments.data?.filter((item) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tashkent" }).format(new Date(item.start_at)) === day) ?? []; const rest = isRestDay(day); const isToday = day === todayIso; return <article className={`flex min-h-40 flex-col rounded-xl border p-3 shadow-sm transition ${isToday ? "border-brand-500 ring-1 ring-brand-500" : "border-slate-200"} ${rest ? "bg-slate-50" : "bg-white"}`} key={day}><button className="flex items-center justify-between gap-2 text-left" onClick={() => { setDate(day); setView("day"); }} type="button"><span><span className="block text-[11px] font-medium uppercase tracking-wide text-slate-400">{WEEKDAYS[weekdayIndex(day)]}</span><span className={`text-base font-semibold ${isToday ? "text-brand-700" : "text-slate-900"}`}>{Number(day.slice(-2))}</span></span>{rest ? <Badge color="gray">Dam</Badge> : items.length ? <Badge color="info">{items.length}</Badge> : null}</button><div className="mt-3 space-y-1.5">{items.map((item) => <button className={`block w-full rounded-md border px-2 py-1.5 text-left text-xs transition hover:brightness-95 ${statusChip(item.status)}`} key={item.id} onClick={() => { setDate(day); setView("day"); }} type="button"><span className="block truncate font-medium">{item.patient_name ?? "Nomaʼlum bemor"}</span><span className="tabular-nums opacity-80">{timeLabel(item.start_at)}</span></button>)}{items.length === 0 ? <p className="mt-1 text-xs text-slate-400">{rest ? "Dam olish kuni" : "Qabul yo‘q"}</p> : null}</div></article>; })}</section> : null}
