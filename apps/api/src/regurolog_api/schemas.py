@@ -395,3 +395,7 @@ class StaffActivityStat(StrictModel):
     state: str
     appointments_created: int
     actions: int
+
+
+class AdminResetRequest(StrictModel):
+    confirm: str = Field(min_length=1, max_length=64)

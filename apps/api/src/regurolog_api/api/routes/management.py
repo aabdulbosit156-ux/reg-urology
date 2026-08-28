@@ -41,6 +41,7 @@ from regurolog_api.models import (
 )
 from regurolog_api.schemas import (
     ActivityLogItem,
+    AdminResetRequest,
     AnalyticsResponse,
     CampaignCreateRequest,
     CampaignResponse,
@@ -904,3 +905,88 @@ async def activity_logs(
         )
         for event in events
     ]
+
+
+# Ordered SQL for each destructive reset scope (children before parents).
+_RESET_STATEMENTS: dict[str, tuple[str, ...]] = {
+    "calendar": (
+        "DELETE FROM appointment_events",
+        "DELETE FROM appointments",
+        "DELETE FROM day_overrides",
+        "DELETE FROM schedule_blocks",
+        "DELETE FROM work_schedule_versions",
+        "DELETE FROM outbox_jobs WHERE kind LIKE 'appointment_%'",
+    ),
+    "patients": (
+        "DELETE FROM consents",
+        "DELETE FROM contact_notes",
+        "DELETE FROM sheet_attempts",
+        "DELETE FROM appointment_events",
+        "DELETE FROM appointments",
+        "DELETE FROM contact_attempts",
+        "DELETE FROM reception_sheets",
+        "DELETE FROM inquiries",
+        "DELETE FROM registration_drafts",
+        "DELETE FROM attribution_events",
+        "DELETE FROM patients",
+    ),
+    "staff": (
+        # Null every actor reference before removing the staff rows themselves.
+        "UPDATE staff_users SET invited_by = NULL",
+        "UPDATE campaigns SET created_by = NULL",
+        "UPDATE inquiries SET assigned_to = NULL",
+        "UPDATE reception_sheets SET created_by = NULL",
+        "UPDATE contact_attempts SET actor_id = NULL",
+        "UPDATE contact_notes SET author_id = NULL",
+        "UPDATE work_schedule_versions SET created_by = NULL",
+        "UPDATE day_overrides SET created_by = NULL",
+        "UPDATE schedule_blocks SET created_by = NULL",
+        "UPDATE appointments SET created_by = NULL",
+        "UPDATE appointment_events SET actor_id = NULL",
+        "UPDATE settings_versions SET actor_id = NULL",
+        "DELETE FROM auth_challenges",
+        "DELETE FROM staff_invites",
+        # Staff sessions cascade-delete; root sessions are untouched.
+        "DELETE FROM staff_users",
+    ),
+}
+
+
+@router.post("/admin/reset/{scope}")
+async def reset_data(
+    scope: str,
+    payload: AdminResetRequest,
+    request: Request,
+    current: PrincipalDependency,
+    settings: SettingsDependency,
+    database: DatabaseDependency,
+) -> dict[str, str]:
+    """Destructive reset of a data scope. Guarded by role and a typed confirmation."""
+
+    if scope not in _RESET_STATEMENTS:
+        raise ApiError(404, "UNKNOWN_RESET_SCOPE", "Noma'lum tozalash bo'limi")
+    if scope == "staff":
+        if current.kind != "root":
+            raise ApiError(
+                403, "ROOT_REQUIRED", "Xodimlar bazasini faqat root operator tozalashi mumkin"
+            )
+    else:
+        ensure_role(current, MANAGERS)
+    require_csrf(request, settings, current)
+    if payload.confirm.strip() != "TOZALASH":
+        raise ApiError(422, "CONFIRM_REQUIRED", "Tasdiqlash uchun TOZALASH deb yozing")
+    async with database.session_factory() as db_session:
+        async with db_session.begin():
+            for statement in _RESET_STATEMENTS[scope]:
+                await db_session.execute(text(statement))
+            add_audit(
+                db_session,
+                actor_kind=current.kind,
+                actor_id=current.actor_id,
+                action=f"admin.reset_{scope}",
+                entity_type="database",
+                entity_id=None,
+                request_id=request.state.request_id,
+                occurred_at=datetime.now(UTC),
+            )
+    return {"status": "ok", "scope": scope}

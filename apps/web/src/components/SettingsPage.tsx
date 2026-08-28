@@ -1,13 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, Checkbox, Label, Select, TextInput, Textarea } from "flowbite-react";
-import { Bell, Bot, Building2, CalendarClock, Link2, UserPlus, Users } from "lucide-react";
+import { Bell, Bot, Building2, CalendarClock, Link2, ShieldAlert, Trash2, UserPlus, Users } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 
 import { apiRequest } from "../api/client";
 import { botStatusLabel, staffRoleLabel } from "../labels";
 import { EmptyState, QueryError, QueryLoading } from "./QueryState";
 
-type Section = "bot" | "clinic" | "schedule" | "notifications" | "staff" | "campaigns";
+type Section = "bot" | "clinic" | "schedule" | "notifications" | "staff" | "campaigns" | "danger";
 interface BotStatus { bot_id: number; username: string; display_name: string; status: string; last_update_at: string | null; last_error: string | null }
 interface Doctor { id: string; name: string; clinic_address: string; directions: string | null; contact_phone: string; timezone: string; slot_minutes: number; active: boolean }
 interface ScheduleVersion { id: string; doctor_id: string; effective_from: string; weekly_intervals: Record<string, Array<{ start: string; end: string }>>; slot_minutes: number; created_at: string }
@@ -23,9 +23,10 @@ const sectionItems = [
   ["notifications", "Bildirishnoma", Bell],
   ["staff", "Xodimlar", Users],
   ["campaigns", "UTM", Link2],
+  ["danger", "Tozalash", Trash2],
 ] as const;
 
-export function SettingsPage() {
+export function SettingsPage({ isRoot = false }: { isRoot?: boolean }) {
   const queryClient = useQueryClient();
   const [section, setSection] = useState<Section>("bot");
   const [notice, setNotice] = useState<string | null>(null);
@@ -42,6 +43,7 @@ export function SettingsPage() {
       {section === "notifications" ? <NotificationSettings onSaved={setNotice} /> : null}
       {section === "staff" ? <StaffSettings /> : null}
       {section === "campaigns" ? <CampaignSettings /> : null}
+      {section === "danger" ? <DangerSettings isRoot={isRoot} /> : null}
     </div>
   );
 }
@@ -155,4 +157,52 @@ function CampaignSettings() {
   const campaigns = useQuery({ queryKey: ["campaigns"], queryFn: () => apiRequest<Campaign[]>("/campaigns") });
   const create = useMutation({ mutationFn: () => apiRequest<Campaign>("/campaigns", { method: "POST", body: JSON.stringify({ name, utm_source: source, utm_medium: medium, utm_campaign: campaignName, utm_content: null, utm_term: null }) }), onSuccess: async () => { setName(""); setSource(""); setCampaignName(""); await queryClient.invalidateQueries({ queryKey: ["campaigns"] }); } });
   return <section className="space-y-4"><form className="grid gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2" onSubmit={(event) => { event.preventDefault(); create.mutate(); }}><div><Label htmlFor="campaign-label">Kampaniya nomi</Label><TextInput id="campaign-label" onChange={(event) => setName(event.target.value)} required value={name} /></div><div><Label htmlFor="utm-source">UTM source</Label><TextInput id="utm-source" onChange={(event) => setSource(event.target.value)} required value={source} /></div><div><Label htmlFor="utm-medium">UTM medium</Label><TextInput id="utm-medium" onChange={(event) => setMedium(event.target.value)} required value={medium} /></div><div><Label htmlFor="utm-campaign">UTM campaign</Label><TextInput id="utm-campaign" onChange={(event) => setCampaignName(event.target.value)} required value={campaignName} /></div>{create.isError ? <div className="md:col-span-2"><QueryError error={create.error} /></div> : null}<div className="md:col-span-2"><Button color="primary" disabled={create.isPending} type="submit">Link yaratish</Button></div></form>{campaigns.isPending ? <QueryLoading /> : null}{campaigns.isError ? <QueryError error={campaigns.error} /> : null}<div className="grid gap-3 lg:grid-cols-2">{campaigns.data?.map((item) => <article className="rounded-xl border border-slate-200 bg-white p-4" key={item.id}><div className="flex justify-between gap-3"><h3 className="font-medium">{item.name}</h3><Badge color={item.archived_at ? "gray" : "success"}>{item.archived_at ? "Arxiv" : "Faol"}</Badge></div><p className="mt-1 text-xs text-slate-500">{item.utm_source} / {item.utm_medium} / {item.utm_campaign}</p>{item.deep_link ? <a className="mt-3 block break-all text-sm text-brand-800 underline" href={item.deep_link} rel="noreferrer" target="_blank">{item.deep_link}</a> : <p className="mt-3 text-sm text-amber-700">Link uchun avval botni ulang.</p>}</article>)}</div></section>;
+}
+
+function DangerButton({ title, description, scope, warning }: { title: string; description: string; scope: string; warning?: string }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const reset = useMutation({
+    mutationFn: () => apiRequest(`/admin/reset/${scope}`, { method: "POST", body: JSON.stringify({ confirm: "TOZALASH" }) }),
+    onSuccess: async () => { setOpen(false); setConfirmText(""); await queryClient.invalidateQueries(); },
+  });
+  return (
+    <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+      <div className="flex items-start gap-3">
+        <ShieldAlert aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-rose-500" />
+        <div className="min-w-0">
+          <p className="font-medium text-rose-900">{title}</p>
+          <p className="mt-0.5 text-sm text-rose-700">{description}</p>
+        </div>
+      </div>
+      {!open ? (
+        <button className="mt-3 min-h-9 rounded-lg bg-rose-600 px-4 text-sm font-medium text-white transition hover:bg-rose-700" onClick={() => setOpen(true)} type="button">Tozalash</button>
+      ) : (
+        <div className="mt-3 space-y-2">
+          <p className="text-sm text-rose-800">Bu amalni <b>ortga qaytarib bo‘lmaydi</b>.{warning ? ` ${warning}` : ""} Tasdiqlash uchun katta harflar bilan <b>TOZALASH</b> deb yozing:</p>
+          <TextInput autoComplete="off" onChange={(event) => setConfirmText(event.target.value)} placeholder="TOZALASH" value={confirmText} />
+          {reset.isError ? <Alert color="failure">{reset.error.message}</Alert> : null}
+          <div className="flex flex-wrap gap-2">
+            <button className="min-h-9 rounded-lg bg-rose-600 px-4 text-sm font-medium text-white transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50" disabled={confirmText !== "TOZALASH" || reset.isPending} onClick={() => reset.mutate()} type="button">{reset.isPending ? "O‘chirilmoqda…" : "Ha, butunlay o‘chirish"}</button>
+            <button className="min-h-9 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 transition hover:bg-slate-50" onClick={() => { setOpen(false); setConfirmText(""); }} type="button">Bekor qilish</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DangerSettings({ isRoot }: { isRoot: boolean }) {
+  return (
+    <section className="max-w-2xl space-y-4">
+      <div className="rounded-xl border border-rose-200 bg-white p-4">
+        <h2 className="font-semibold text-rose-900">Xavfli hudud</h2>
+        <p className="mt-1 text-sm text-slate-600">Bu amallar ma’lumotlarni butunlay o‘chiradi va ortga qaytarilmaydi. Har biri ikki bosqichda tasdiqlanadi.</p>
+      </div>
+      <DangerButton title="Kalendarni tozalash" description="Barcha qabullar va ish jadvali o‘chiriladi. Bemorlar va murojaatlar saqlanadi." scope="calendar" />
+      <DangerButton title="Mijozlar bazasini tozalash" description="Barcha bemorlar, murojaatlar, aloqa urinishlari va qabullar o‘chiriladi." scope="patients" />
+      {isRoot ? <DangerButton title="Xodimlar bazasini tozalash" description="Barcha xodimlar, takliflar va sessiyalar o‘chiriladi." scope="staff" warning="Boshqa xodimlar tizimdan chiqariladi." /> : null}
+    </section>
+  );
 }
