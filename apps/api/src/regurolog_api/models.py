@@ -225,10 +225,12 @@ class Patient(Base):
 
 class Doctor(Base):
     __tablename__ = "doctors"
+    __table_args__ = (CheckConstraint("slot_minutes BETWEEN 5 AND 240", name="slot_minutes_range"),)
 
     id: Mapped[UUID] = uuid_column()
     name: Mapped[str] = mapped_column(String(120))
     timezone: Mapped[str] = mapped_column(String(64), default="Asia/Tashkent")
+    slot_minutes: Mapped[int] = mapped_column(Integer, default=15, server_default="15")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     clinic_address: Mapped[str | None] = mapped_column(String(240))
     directions: Mapped[str | None] = mapped_column(Text)
@@ -426,7 +428,7 @@ class Appointment(Base):
             "status IN ('scheduled','checked_in','completed','cancelled','no_show')",
             name="status",
         ),
-        CheckConstraint("end_at = start_at + interval '15 minutes'", name="duration_15m"),
+        CheckConstraint("end_at > start_at", name="positive_duration"),
         ExcludeConstraint(
             ("doctor_id", "="),
             (func.tstzrange(text("start_at"), text("end_at"), "[)"), "&&"),

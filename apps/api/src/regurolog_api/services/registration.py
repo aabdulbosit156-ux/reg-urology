@@ -33,6 +33,12 @@ def inline_button(label: str, callback_data: str) -> dict[str, object]:
     return {"inline_keyboard": [[{"text": label, "callback_data": callback_data}]]}
 
 
+def web_app_button(label: str, url: str) -> dict[str, object]:
+    """An inline button that opens the panel as a Telegram Web App."""
+
+    return {"inline_keyboard": [[{"text": label, "web_app": {"url": url}}]]}
+
+
 def source_snapshot(campaign: Campaign | None, kind: str) -> dict[str, Any]:
     if campaign is None:
         return {"kind": kind}
@@ -695,13 +701,25 @@ class TelegramRegistrationService:
                 )
             ).all()
         )
+        snapshot = inquiry.contact_snapshot or {}
+        patient_name = str(snapshot.get("full_name") or "Yangi bemor")
+        patient_phone = str(snapshot.get("phone_e164") or "")
+        notice = f"🆕 Yangi mijoz: {patient_name}"
+        if patient_phone:
+            notice += f"\n📞 {patient_phone}"
+        panel_markup = (
+            web_app_button("🔎 Panelni ochish", self.settings.public_base_url)
+            if self.settings.public_base_url
+            else None
+        )
         for staff_chat_id in active_staff:
             await enqueue_telegram_message(
                 db_session,
                 idempotency_key=f"inquiry:{inquiry.id}:new:{staff_chat_id}",
                 bot_id=draft.bot_id,
                 chat_id=staff_chat_id,
-                text=f"Yangi murojaat #{str(inquiry.id)[:8]}",
+                text=notice,
+                reply_markup=panel_markup,
                 entity_id=inquiry.id,
                 kind="staff_new_inquiry",
             )

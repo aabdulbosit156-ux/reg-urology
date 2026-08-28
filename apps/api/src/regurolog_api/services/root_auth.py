@@ -147,8 +147,12 @@ class RootAuthService:
         if not constant_time_token_matches(root_session.auth_epoch, auth_epoch(self.admin_token)):
             root_session.revoked_at = current_time
             return None
-        if current_time - root_session.last_seen_at >= timedelta(minutes=5):
-            root_session.last_seen_at = current_time
+        # Sliding session: every authenticated request pushes the expiry forward so
+        # an actively used panel stays logged in.
+        root_session.last_seen_at = current_time
+        root_session.expires_at = current_time + timedelta(
+            seconds=self.settings.root_session_ttl_seconds
+        )
         return root_session
 
     def csrf_matches(self, root_session: Session, csrf_token: str) -> bool:

@@ -9,7 +9,8 @@ import { EmptyState, QueryError, QueryLoading } from "./QueryState";
 
 type Section = "bot" | "clinic" | "schedule" | "notifications" | "staff" | "campaigns";
 interface BotStatus { bot_id: number; username: string; display_name: string; status: string; last_update_at: string | null; last_error: string | null }
-interface Doctor { id: string; name: string; clinic_address: string; directions: string | null; contact_phone: string; timezone: string; active: boolean }
+interface Doctor { id: string; name: string; clinic_address: string; directions: string | null; contact_phone: string; timezone: string; slot_minutes: number; active: boolean }
+interface ScheduleVersion { id: string; doctor_id: string; effective_from: string; weekly_intervals: Record<string, Array<{ start: string; end: string }>>; slot_minutes: number; created_at: string }
 interface Staff { id: string; full_name: string; telegram_username: string | null; role: string; state: string }
 interface Invite { id: string; role: string; state: string; deep_link?: string; qr_data_url?: string; claimed_full_name?: string | null; claimed_username?: string | null }
 interface Campaign { id: string; name: string; code: string; utm_source: string; utm_medium: string; utm_campaign: string; deep_link: string | null; qr_data_url: string | null; archived_at: string | null }
@@ -95,26 +96,48 @@ function ClinicSettings({ doctor, loading, onSaved }: { doctor?: Doctor; loading
 }
 
 function ScheduleSettings({ doctor, onSaved }: { doctor?: Doctor; onSaved: (message: string) => void }) {
+  const queryClient = useQueryClient();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tashkent" }).format(new Date());
-  const [effective, setEffective] = useState(today);
-  const [start, setStart] = useState("09:00");
-  const [end, setEnd] = useState("13:00");
-  const [secondEnabled, setSecondEnabled] = useState(true);
-  const [secondStart, setSecondStart] = useState("14:00");
-  const [secondEnd, setSecondEnd] = useState("18:00");
   const [activeDays, setActiveDays] = useState([0, 1, 2, 3, 4, 5]);
-  const [exceptionDate, setExceptionDate] = useState(today);
-  const [exceptionClosed, setExceptionClosed] = useState(true);
-  const [exceptionReason, setExceptionReason] = useState("Dam olish kuni");
-  const [blockDate, setBlockDate] = useState(today);
-  const [blockStart, setBlockStart] = useState("12:00");
-  const [blockEnd, setBlockEnd] = useState("12:30");
-  const [blockReason, setBlockReason] = useState("Doktor band");
-  const save = useMutation({ mutationFn: () => { if (!doctor) throw new Error("Avval doktorni sozlang"); const intervals = [{ start, end }, ...(secondEnabled ? [{ start: secondStart, end: secondEnd }] : [])]; const weekly = Object.fromEntries(Array.from({ length: 7 }, (_, day) => [String(day), activeDays.includes(day) ? intervals : []])); return apiRequest("/schedule/versions", { method: "POST", body: JSON.stringify({ doctor_id: doctor.id, effective_from: effective, weekly_intervals: weekly }) }); }, onSuccess: () => onSaved("Yangi ish jadvali versiyasi saqlandi") });
-  const saveException = useMutation({ mutationFn: () => { if (!doctor) throw new Error("Avval doktorni sozlang"); return apiRequest(`/schedule/day-overrides/${exceptionDate}`, { method: "PUT", body: JSON.stringify({ doctor_id: doctor.id, intervals: exceptionClosed ? [] : [{ start, end }, ...(secondEnabled ? [{ start: secondStart, end: secondEnd }] : [])], closed: exceptionClosed, reason: exceptionReason || null }) }); }, onSuccess: () => onSaved("Sana istisnosi saqlandi") });
-  const saveBlock = useMutation({ mutationFn: () => { if (!doctor) throw new Error("Avval doktorni sozlang"); return apiRequest("/schedule/blocks", { method: "POST", body: JSON.stringify({ doctor_id: doctor.id, start_at: new Date(`${blockDate}T${blockStart}:00+05:00`).toISOString(), end_at: new Date(`${blockDate}T${blockEnd}:00+05:00`).toISOString(), reason: blockReason }) }); }, onSuccess: () => onSaved("Qisman band blok saqlandi") });
+  const [start, setStart] = useState("09:00");
+  const [end, setEnd] = useState("18:00");
+  const [slotMinutes, setSlotMinutes] = useState(15);
+  const versions = useQuery({
+    queryKey: ["schedule-versions", doctor?.id],
+    queryFn: () => apiRequest<ScheduleVersion[]>(`/schedule/versions?doctor_id=${doctor?.id}`),
+    enabled: Boolean(doctor),
+  });
+  const latest = versions.data?.[0];
+  useEffect(() => { if (doctor) setSlotMinutes(doctor.slot_minutes); }, [doctor?.id, doctor?.slot_minutes]);
+  useEffect(() => {
+    if (!latest) return;
+    const days = Object.entries(latest.weekly_intervals).filter(([, intervals]) => intervals.length > 0).map(([day]) => Number(day));
+    if (days.length) setActiveDays(days);
+    const firstInterval = Object.values(latest.weekly_intervals).find((intervals) => intervals.length > 0)?.[0];
+    if (firstInterval) { setStart(firstInterval.start); setEnd(firstInterval.end); }
+  }, [latest]);
+  const save = useMutation({
+    mutationFn: () => {
+      if (!doctor) throw new Error("Avval doktorni sozlang");
+      const weekly = Object.fromEntries(Array.from({ length: 7 }, (_, day) => [String(day), activeDays.includes(day) ? [{ start, end }] : []]));
+      return apiRequest("/schedule/versions", { method: "POST", body: JSON.stringify({ doctor_id: doctor.id, effective_from: today, weekly_intervals: weekly, slot_minutes: slotMinutes }) });
+    },
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ["schedule-versions"] }); await queryClient.invalidateQueries({ queryKey: ["doctors"] }); onSaved("Ish jadvali saqlandi"); },
+  });
   const dayLabels = ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"];
-  return <div className="grid gap-4 xl:grid-cols-2"><form className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm" onSubmit={(event) => { event.preventDefault(); save.mutate(); }}><div><h2 className="font-semibold">Haftalik ish vaqti</h2><p className="mt-1 text-sm text-slate-600">Har kun uchun ertalabki va ixtiyoriy ikkinchi interval.</p></div><div><Label htmlFor="schedule-effective">Amal qilish sanasi</Label><TextInput id="schedule-effective" onChange={(event) => setEffective(event.target.value)} type="date" value={effective} /></div><fieldset><legend className="mb-2 text-sm font-medium text-slate-900">Ish kunlari</legend><div className="flex flex-wrap gap-2">{dayLabels.map((label, day) => <label className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-200 px-3" key={label}><Checkbox checked={activeDays.includes(day)} onChange={() => setActiveDays((items) => items.includes(day) ? items.filter((item) => item !== day) : [...items, day])} />{label}</label>)}</div></fieldset><div className="grid gap-3 sm:grid-cols-2"><div><Label htmlFor="schedule-start">1-boshlanish</Label><TextInput id="schedule-start" onChange={(event) => setStart(event.target.value)} step={900} type="time" value={start} /></div><div><Label htmlFor="schedule-end">1-tugash</Label><TextInput id="schedule-end" onChange={(event) => setEnd(event.target.value)} step={900} type="time" value={end} /></div></div><label className="flex items-center gap-2"><Checkbox checked={secondEnabled} onChange={(event) => setSecondEnabled(event.target.checked)} />Ikkinchi interval</label>{secondEnabled ? <div className="grid gap-3 sm:grid-cols-2"><div><Label htmlFor="schedule-second-start">2-boshlanish</Label><TextInput id="schedule-second-start" onChange={(event) => setSecondStart(event.target.value)} step={900} type="time" value={secondStart} /></div><div><Label htmlFor="schedule-second-end">2-tugash</Label><TextInput id="schedule-second-end" onChange={(event) => setSecondEnd(event.target.value)} step={900} type="time" value={secondEnd} /></div></div> : null}{!doctor ? <Alert color="warning">Avval klinika bo‘limida doktorni kiriting.</Alert> : null}{save.isError ? <Alert color="failure">{save.error.message}</Alert> : null}<Button color="primary" disabled={!doctor || save.isPending} type="submit">Yangi versiyani saqlash</Button></form><div className="space-y-4"><form className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm" onSubmit={(event) => { event.preventDefault(); saveException.mutate(); }}><h2 className="font-semibold">Sana istisnosi</h2><div><Label htmlFor="exception-date">Sana</Label><TextInput id="exception-date" onChange={(event) => setExceptionDate(event.target.value)} type="date" value={exceptionDate} /></div><label className="flex items-center gap-2"><Checkbox checked={exceptionClosed} onChange={(event) => setExceptionClosed(event.target.checked)} />To‘liq dam olish</label><div><Label htmlFor="exception-reason">Sabab</Label><TextInput id="exception-reason" onChange={(event) => setExceptionReason(event.target.value)} value={exceptionReason} /></div>{saveException.isError ? <Alert color="failure">{saveException.error.message}</Alert> : null}<Button color="secondary" disabled={!doctor || saveException.isPending} type="submit">Istisnoni saqlash</Button></form><form className="space-y-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm" onSubmit={(event) => { event.preventDefault(); saveBlock.mutate(); }}><h2 className="font-semibold">Qisman band vaqt</h2><div><Label htmlFor="block-date">Sana</Label><TextInput id="block-date" onChange={(event) => setBlockDate(event.target.value)} type="date" value={blockDate} /></div><div className="grid gap-3 sm:grid-cols-2"><div><Label htmlFor="block-start">Boshlanish</Label><TextInput id="block-start" onChange={(event) => setBlockStart(event.target.value)} step={900} type="time" value={blockStart} /></div><div><Label htmlFor="block-end">Tugash</Label><TextInput id="block-end" onChange={(event) => setBlockEnd(event.target.value)} step={900} type="time" value={blockEnd} /></div></div><div><Label htmlFor="block-reason">Sabab</Label><TextInput id="block-reason" onChange={(event) => setBlockReason(event.target.value)} required value={blockReason} /></div>{saveBlock.isError ? <Alert color="failure">{saveBlock.error.message}</Alert> : null}<Button color="secondary" disabled={!doctor || saveBlock.isPending} type="submit">Blok qo‘shish</Button></form></div></div>;
+  const durationOptions = [10, 15, 20, 30, 45, 60];
+  return <form className="max-w-2xl space-y-5 rounded-xl border border-slate-200 bg-white p-5 shadow-sm" onSubmit={(event) => { event.preventDefault(); save.mutate(); }}>
+    <div><h2 className="font-semibold">Ish jadvali</h2><p className="mt-1 text-sm text-slate-600">Ish kunlari, boshlanish–tugash vaqti va bitta qabul davomiyligini belgilang. Kalendar shunga qarab shakllanadi.</p></div>
+    <fieldset><legend className="mb-2 text-sm font-medium text-slate-900">Ish kunlari</legend><div className="flex flex-wrap gap-2">{dayLabels.map((label, day) => <label className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 hover:bg-slate-50" key={label}><Checkbox checked={activeDays.includes(day)} onChange={() => setActiveDays((items) => items.includes(day) ? items.filter((item) => item !== day) : [...items, day])} />{label}</label>)}</div></fieldset>
+    <div className="grid gap-3 sm:grid-cols-3">
+      <div><Label htmlFor="schedule-start">Boshlanish vaqti</Label><TextInput id="schedule-start" onChange={(event) => setStart(event.target.value)} step={900} type="time" value={start} /></div>
+      <div><Label htmlFor="schedule-end">Tugash vaqti</Label><TextInput id="schedule-end" onChange={(event) => setEnd(event.target.value)} step={900} type="time" value={end} /></div>
+      <div><Label htmlFor="schedule-duration">Bitta qabul (daqiqa)</Label><Select id="schedule-duration" onChange={(event) => setSlotMinutes(Number(event.target.value))} value={slotMinutes}>{durationOptions.map((minutes) => <option key={minutes} value={minutes}>{minutes} daqiqa</option>)}</Select></div>
+    </div>
+    {!doctor ? <Alert color="warning">Avval «Klinika» bo‘limida doktorni kiriting.</Alert> : null}
+    {save.isError ? <Alert color="failure">{save.error.message}</Alert> : null}
+    <Button color="primary" disabled={!doctor || save.isPending || activeDays.length === 0} type="submit">Saqlash</Button>
+  </form>;
 }
 
 function StaffSettings() {

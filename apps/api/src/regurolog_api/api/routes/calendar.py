@@ -233,6 +233,7 @@ async def list_doctors(
             directions=doctor.directions,
             contact_phone=doctor.contact_phone or "",
             timezone="Asia/Tashkent",
+            slot_minutes=doctor.slot_minutes,
             active=doctor.active,
         )
         for doctor in doctors
@@ -291,6 +292,7 @@ async def upsert_primary_doctor(
         directions=doctor.directions,
         contact_phone=doctor.contact_phone or "",
         timezone="Asia/Tashkent",
+        slot_minutes=doctor.slot_minutes,
         active=doctor.active,
     )
 
@@ -312,12 +314,16 @@ async def list_schedule_versions(
                 )
             ).all()
         )
+        slot_minutes = int(
+            await db_session.scalar(select(Doctor.slot_minutes).where(Doctor.id == doctor_id)) or 15
+        )
     return [
         WeeklyScheduleResponse(
             id=item.id,
             doctor_id=item.doctor_id,
             effective_from=item.effective_from,
             weekly_intervals=item.weekly_intervals,
+            slot_minutes=slot_minutes,
             created_at=item.created_at,
         )
         for item in versions
@@ -342,15 +348,7 @@ async def create_schedule_version(
     now = datetime.now(UTC)
     async with database.session_factory() as db_session:
         async with db_session.begin():
-            await service.lock_doctor(db_session, payload.doctor_id)
-            duplicate = await db_session.scalar(
-                select(WorkScheduleVersion.id).where(
-                    WorkScheduleVersion.doctor_id == payload.doctor_id,
-                    WorkScheduleVersion.effective_from == payload.effective_from,
-                )
-            )
-            if duplicate:
-                raise ApiError(409, "SCHEDULE_VERSION_EXISTS", "Bu sana uchun versiya mavjud")
+            doctor = await service.lock_doctor(db_session, payload.doctor_id)
             conflicts = await service.conflicting_appointments_for_weekly(
                 db_session, payload.doctor_id, payload.effective_from, weekly
             )
@@ -360,15 +358,31 @@ async def create_schedule_version(
                     "SCHEDULE_CONFLICT",
                     "Yangi jadval kelajak qabullariga zid",
                 )
-            version = WorkScheduleVersion(
-                doctor_id=payload.doctor_id,
-                effective_from=payload.effective_from,
-                weekly_intervals=weekly,
-                created_by=current.staff.id if current.staff else None,
-                created_at=now,
+            doctor.slot_minutes = payload.slot_minutes
+            doctor.updated_at = now
+            # Upsert the single current schedule for this effective date so the form
+            # can be re-saved on the same day without a duplicate-version error.
+            version = await db_session.scalar(
+                select(WorkScheduleVersion)
+                .where(
+                    WorkScheduleVersion.doctor_id == payload.doctor_id,
+                    WorkScheduleVersion.effective_from == payload.effective_from,
+                )
+                .with_for_update()
             )
-            db_session.add(version)
-            await db_session.flush()
+            if version is None:
+                version = WorkScheduleVersion(
+                    doctor_id=payload.doctor_id,
+                    effective_from=payload.effective_from,
+                    weekly_intervals=weekly,
+                    created_by=current.staff.id if current.staff else None,
+                    created_at=now,
+                )
+                db_session.add(version)
+                await db_session.flush()
+            else:
+                version.weekly_intervals = weekly
+                version.created_by = current.staff.id if current.staff else version.created_by
             add_audit(
                 db_session,
                 actor_kind=current.kind,
@@ -384,6 +398,7 @@ async def create_schedule_version(
         doctor_id=version.doctor_id,
         effective_from=version.effective_from,
         weekly_intervals=version.weekly_intervals,
+        slot_minutes=payload.slot_minutes,
         created_at=version.created_at,
     )
 
@@ -425,7 +440,11 @@ async def put_day_override(
                 item.id
                 for item in appointments
                 if payload.closed
-                or not service._fits(intervals, item.start_at.astimezone(BUSINESS_TIMEZONE))
+                or not service._fits(
+                    intervals,
+                    item.start_at.astimezone(BUSINESS_TIMEZONE),
+                    item.end_at.astimezone(BUSINESS_TIMEZONE),
+                )
             ]
             if conflicts:
                 raise ApiError(409, "SCHEDULE_CONFLICT", "Istisno mavjud qabullarga zid")
@@ -678,7 +697,7 @@ async def create_appointment(
     try:
         async with database.session_factory() as db_session:
             async with db_session.begin():
-                await service.lock_doctor(db_session, payload.doctor_id)
+                doctor = await service.lock_doctor(db_session, payload.doctor_id)
                 inquiry = await db_session.get(Inquiry, payload.inquiry_id, with_for_update=True)
                 if inquiry is None or inquiry.status != "open":
                     raise ApiError(404, "OPEN_INQUIRY_NOT_FOUND", "Ochiq murojaat topilmadi")
@@ -711,7 +730,7 @@ async def create_appointment(
                     doctor_id=payload.doctor_id,
                     sheet_id=sheet.id,
                     start_at=start,
-                    end_at=start + timedelta(minutes=15),
+                    end_at=start + timedelta(minutes=doctor.slot_minutes),
                     status="scheduled",
                     created_by=current.staff.id if current.staff else None,
                     schedule_version=1,
@@ -780,7 +799,7 @@ async def reschedule_appointment(
                 appointment_preview = await db_session.get(Appointment, appointment_id)
                 if appointment_preview is None:
                     raise ApiError(404, "APPOINTMENT_NOT_FOUND", "Qabul topilmadi")
-                await service.lock_doctor(db_session, appointment_preview.doctor_id)
+                doctor = await service.lock_doctor(db_session, appointment_preview.doctor_id)
                 appointment = await db_session.get(
                     Appointment,
                     appointment_id,
@@ -806,7 +825,7 @@ async def reschedule_appointment(
                 old_start = appointment.start_at
                 start = payload.start_at.astimezone(UTC)
                 appointment.start_at = start
-                appointment.end_at = start + timedelta(minutes=15)
+                appointment.end_at = start + timedelta(minutes=doctor.slot_minutes)
                 appointment.version += 1
                 appointment.updated_at = datetime.now(UTC)
                 db_session.add(

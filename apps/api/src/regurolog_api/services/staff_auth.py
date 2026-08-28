@@ -245,7 +245,12 @@ class StaffAuthService:
             if session.revoked_at is None:
                 session.revoked_at = current_time
             return None
+        # Sliding session: keep an actively used session alive by pushing the
+        # expiry forward on every authenticated request.
         session.last_seen_at = current_time
+        session.expires_at = current_time + timedelta(
+            seconds=self.settings.staff_session_ttl_seconds
+        )
         return session, staff
 
     def csrf_matches(self, session: Session, csrf_token: str) -> bool:

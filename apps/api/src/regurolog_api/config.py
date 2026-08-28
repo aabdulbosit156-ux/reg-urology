@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     cookie_secure: bool = Field(default=False, validation_alias="COOKIE_SECURE")
     trust_proxy_headers: bool = Field(default=False, validation_alias="TRUST_PROXY_HEADERS")
     root_session_ttl_seconds: int = Field(
-        default=3600,
+        default=86_400,
         ge=300,
         le=86_400,
         validation_alias="ROOT_SESSION_TTL_SECONDS",
@@ -92,13 +92,13 @@ class Settings(BaseSettings):
         validation_alias="ROOT_LOGIN_BLOCK_SECONDS",
     )
     staff_session_ttl_seconds: int = Field(
-        default=28_800,
+        default=86_400,
         ge=1800,
         le=86_400,
         validation_alias="STAFF_SESSION_TTL_SECONDS",
     )
     staff_idle_timeout_seconds: int = Field(
-        default=1800,
+        default=7200,
         ge=300,
         le=7200,
         validation_alias="STAFF_IDLE_TIMEOUT_SECONDS",

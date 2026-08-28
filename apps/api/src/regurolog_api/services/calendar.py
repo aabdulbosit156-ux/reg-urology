@@ -15,7 +15,6 @@ from regurolog_api.domain.validation import (
 from regurolog_api.errors import ApiError
 from regurolog_api.models import (
     Appointment,
-    DayOverride,
     Doctor,
     ScheduleBlock,
     WorkScheduleVersion,
@@ -35,6 +34,10 @@ class CalendarService:
             raise ApiError(404, "DOCTOR_NOT_FOUND", "Faol doktor topilmadi")
         return doctor
 
+    async def slot_minutes(self, db_session: AsyncSession, doctor_id: UUID) -> int:
+        value = await db_session.scalar(select(Doctor.slot_minutes).where(Doctor.id == doctor_id))
+        return int(value) if value else 15
+
     async def intervals_for_date(
         self,
         db_session: AsyncSession,
@@ -43,22 +46,16 @@ class CalendarService:
         *,
         candidate_weekly: dict[str, list[dict[str, str]]] | None = None,
     ) -> tuple[list[dict[str, str]], WorkScheduleVersion | None]:
-        override = await db_session.scalar(
-            select(DayOverride).where(
-                DayOverride.doctor_id == doctor_id, DayOverride.local_date == local_date
-            )
-        )
-        if override is not None:
-            return ([] if override.closed else override.intervals), None
         if candidate_weekly is not None:
             return candidate_weekly.get(str(local_date.weekday()), []), None
+        # Single current weekly schedule; no effective-from windows or day exceptions.
         version = await db_session.scalar(
             select(WorkScheduleVersion)
-            .where(
-                WorkScheduleVersion.doctor_id == doctor_id,
-                WorkScheduleVersion.effective_from <= local_date,
+            .where(WorkScheduleVersion.doctor_id == doctor_id)
+            .order_by(
+                WorkScheduleVersion.effective_from.desc(),
+                WorkScheduleVersion.created_at.desc(),
             )
-            .order_by(WorkScheduleVersion.effective_from.desc())
             .limit(1)
         )
         if version is None:
@@ -69,15 +66,10 @@ class CalendarService:
     async def availability(
         self, db_session: AsyncSession, doctor_id: UUID, local_date: date
     ) -> tuple[bool, list[AvailabilitySlot], WorkScheduleVersion | None]:
+        minutes = await self.slot_minutes(db_session, doctor_id)
         intervals, version = await self.intervals_for_date(db_session, doctor_id, local_date)
         if not intervals:
-            override_exists = await db_session.scalar(
-                select(DayOverride.id).where(
-                    DayOverride.doctor_id == doctor_id,
-                    DayOverride.local_date == local_date,
-                )
-            )
-            return override_exists is not None or version is not None, [], version
+            return version is not None, [], version
         day_start = local_datetime_to_utc(local_date, parse_grid_time("00:00"))
         day_end = day_start + timedelta(days=1)
         appointments = list(
@@ -108,8 +100,8 @@ class CalendarService:
         for interval in validate_intervals(intervals):
             cursor = local_datetime_to_utc(local_date, parse_grid_time(interval["start"]))
             interval_end = local_datetime_to_utc(local_date, parse_grid_time(interval["end"]))
-            while cursor + timedelta(minutes=15) <= interval_end:
-                end = cursor + timedelta(minutes=15)
+            while cursor + timedelta(minutes=minutes) <= interval_end:
+                end = cursor + timedelta(minutes=minutes)
                 state = "available"
                 if cursor <= now:
                     state = "past"
@@ -140,8 +132,9 @@ class CalendarService:
             raise ApiError(422, "TIMEZONE_REQUIRED", "Qabul vaqti timezone bilan yuborilsin")
         start_at = start_at.astimezone(UTC)
         local = start_at.astimezone(BUSINESS_TIMEZONE)
-        if local.second or local.microsecond or local.minute not in {0, 15, 30, 45}:
-            raise ApiError(422, "INVALID_SLOT_GRID", "Vaqt 15 daqiqalik gridda bo‘lsin")
+        # Exact slot alignment is enforced below by matching a generated slot.
+        if local.second or local.microsecond:
+            raise ApiError(422, "INVALID_SLOT_GRID", "Vaqt aniq slot chegarasida bo‘lsin")
         now = datetime.now(UTC)
         if start_at <= now:
             raise ApiError(422, "PAST_APPOINTMENT", "O‘tgan vaqtga qabul qo‘yib bo‘lmaydi")
@@ -187,19 +180,19 @@ class CalendarService:
         )
         conflicts: list[UUID] = []
         for appointment in appointments:
-            local = appointment.start_at.astimezone(BUSINESS_TIMEZONE)
-            if local.date() < effective_from:
+            local_start = appointment.start_at.astimezone(BUSINESS_TIMEZONE)
+            local_end = appointment.end_at.astimezone(BUSINESS_TIMEZONE)
+            if local_start.date() < effective_from:
                 continue
             intervals, _ = await self.intervals_for_date(
-                db_session, doctor_id, local.date(), candidate_weekly=weekly
+                db_session, doctor_id, local_start.date(), candidate_weekly=weekly
             )
-            if not self._fits(intervals, local):
+            if not self._fits(intervals, local_start, local_end):
                 conflicts.append(appointment.id)
         return conflicts
 
     @staticmethod
-    def _fits(intervals: list[dict[str, str]], local_start: datetime) -> bool:
-        local_end = local_start + timedelta(minutes=15)
+    def _fits(intervals: list[dict[str, str]], local_start: datetime, local_end: datetime) -> bool:
         for interval in validate_intervals(intervals):
             start = parse_grid_time(interval["start"])
             end = parse_grid_time(interval["end"])

@@ -128,9 +128,27 @@ async def root_login(
     summary="Get current root session",
 )
 async def current_session(
+    request: Request,
     response: Response,
+    settings: SettingsDependency,
     current: CurrentPrincipalDependency,
 ) -> AuthSessionResponse:
+    # Slide the browser cookies forward on every app load so an active operator
+    # is not forced to log in again while the session itself keeps refreshing.
+    session_token = request.cookies.get(SESSION_COOKIE)
+    csrf_token = request.cookies.get(CSRF_COOKIE)
+    if session_token and csrf_token:
+        _set_auth_cookies(
+            response,
+            settings=settings,
+            session_token=session_token,
+            csrf_token=csrf_token,
+            max_age=(
+                settings.staff_session_ttl_seconds
+                if current.kind == "staff"
+                else settings.root_session_ttl_seconds
+            ),
+        )
     response.headers["Cache-Control"] = "no-store"
     return _session_response(
         expires_at=current.session.expires_at,

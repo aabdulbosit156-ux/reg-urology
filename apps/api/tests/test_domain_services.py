@@ -30,7 +30,8 @@ def test_schedule_grid_and_safe_templates() -> None:
     assert weekly["0"] == [{"start": "09:00", "end": "13:00"}]
     assert set(weekly) == {str(day) for day in range(7)}
     local_start = datetime(2026, 8, 24, 12, 45, tzinfo=UTC).astimezone()
-    assert isinstance(CalendarService._fits(weekly["0"], local_start), bool)
+    local_end = datetime(2026, 8, 24, 13, 0, tzinfo=UTC).astimezone()
+    assert isinstance(CalendarService._fits(weekly["0"], local_start, local_end), bool)
     assert render_template("Salom, {full_name}", {"full_name": "<Bemor>"}) == (
         "Salom, &lt;Bemor&gt;"
     )

@@ -89,6 +89,7 @@ class DoctorUpsertRequest(StrictModel):
 class DoctorResponse(DoctorUpsertRequest):
     id: UUID
     timezone: Literal["Asia/Tashkent"]
+    slot_minutes: int
     active: bool
 
 
@@ -229,6 +230,7 @@ class WeeklyScheduleRequest(StrictModel):
     doctor_id: UUID
     effective_from: date
     weekly_intervals: dict[str, list[dict[str, str]]]
+    slot_minutes: int = Field(default=15, ge=5, le=240)
 
 
 class WeeklyScheduleResponse(WeeklyScheduleRequest):
