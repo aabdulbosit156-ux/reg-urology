@@ -310,7 +310,7 @@ async def list_schedule_versions(
                 await db_session.scalars(
                     select(WorkScheduleVersion)
                     .where(WorkScheduleVersion.doctor_id == doctor_id)
-                    .order_by(WorkScheduleVersion.effective_from.desc())
+                    .order_by(WorkScheduleVersion.created_at.desc())
                 )
             ).all()
         )

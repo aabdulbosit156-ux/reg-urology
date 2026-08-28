@@ -229,7 +229,7 @@ export function CalendarPage({ initialBooking, canCorrect = false }: { initialBo
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 className="text-lg font-semibold" id="day-grid-title">{longDate(date)}{date === todayIso ? <span className="ml-2 align-middle rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">Bugun</span> : null}</h2>
-                  <p className="mt-0.5 text-xs text-slate-500">Kunlik jadval · 15 daqiqalik oynalar</p>
+                  <p className="mt-0.5 text-xs text-slate-500">Kunlik jadval · {doctor?.slot_minutes ?? 15} daqiqalik oynalar</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
                   <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-full bg-brand-500" />Bo‘sh</span>
@@ -238,11 +238,11 @@ export function CalendarPage({ initialBooking, canCorrect = false }: { initialBo
                 </div>
               </div>
               {availability.isPending ? <div className="mt-4"><QueryLoading /></div> : null}
-              {availability.data && !availability.data.configured ? (
+              {availability.data && availability.data.slots.length === 0 ? (
                 <div className="mt-4 flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
                   <CalendarOff aria-hidden="true" className="size-8 text-slate-400" />
-                  <p className="font-medium text-slate-700">{isRestDay(date) ? "Dam olish kuni" : "Jadval sozlanmagan"}</p>
-                  <p className="text-sm text-slate-500">{isRestDay(date) ? "Bu kuni klinika ishlamaydi." : "Bu sana uchun ish vaqti belgilanmagan."}</p>
+                  <p className="font-medium text-slate-700">{!availability.data.configured ? "Jadval sozlanmagan" : "Bu kuni qabul yo‘q"}</p>
+                  <p className="text-sm text-slate-500">{!availability.data.configured ? "Sozlamalar → «Ish jadvali» bo‘limini to‘ldiring." : "Bu kun dam olish kuni yoki ish vaqti belgilanmagan."}</p>
                 </div>
               ) : null}
               <div className="mt-4 hidden grid-cols-4 gap-2 sm:grid md:grid-cols-6 xl:grid-cols-8">

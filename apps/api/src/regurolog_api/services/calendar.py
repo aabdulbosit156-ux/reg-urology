@@ -48,14 +48,12 @@ class CalendarService:
     ) -> tuple[list[dict[str, str]], WorkScheduleVersion | None]:
         if candidate_weekly is not None:
             return candidate_weekly.get(str(local_date.weekday()), []), None
-        # Single current weekly schedule; no effective-from windows or day exceptions.
+        # Single current weekly schedule: the most recently saved one wins, so an
+        # old future-dated version never shadows the current schedule.
         version = await db_session.scalar(
             select(WorkScheduleVersion)
             .where(WorkScheduleVersion.doctor_id == doctor_id)
-            .order_by(
-                WorkScheduleVersion.effective_from.desc(),
-                WorkScheduleVersion.created_at.desc(),
-            )
+            .order_by(WorkScheduleVersion.created_at.desc())
             .limit(1)
         )
         if version is None:

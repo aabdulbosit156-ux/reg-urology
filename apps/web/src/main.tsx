@@ -8,9 +8,13 @@ import "./styles.css";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      refetchOnWindowFocus: false,
+      // Near-real-time: refresh on tab focus / reconnect and poll periodically so
+      // changes made elsewhere (other staff, the bot) show up without a manual reload.
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
+      refetchInterval: 20_000,
       retry: 1,
-      staleTime: 60_000,
+      staleTime: 10_000,
     },
   },
 });
