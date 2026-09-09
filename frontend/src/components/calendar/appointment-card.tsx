@@ -14,7 +14,10 @@ export const AppointmentCard = ({ appointment, onClick, onDragStart, draggable =
         type="button"
         draggable={draggable}
         onDragStart={onDragStart}
-        onClick={onClick}
+        onClick={(event) => {
+            event.stopPropagation();
+            onClick();
+        }}
         className="flex w-full cursor-grab items-center gap-1.5 rounded-md bg-secondary px-2 py-1 text-left outline-focus-ring transition duration-100 ease-linear hover:bg-secondary_hover active:cursor-grabbing"
     >
         <span className="shrink-0 text-xs font-semibold text-brand-secondary">{formatTimeUz(appointment.start_at)}</span>

@@ -26,6 +26,8 @@ interface SidebarNavigationProps {
     className?: string;
     /** Whether to round the account card avatar. */
     avatarRounded?: boolean;
+    /** Custom mobile header to render instead of the default hamburger-drawer header. */
+    mobileHeader?: ReactNode;
 }
 
 export const SidebarNavigationSimple = ({
@@ -36,6 +38,7 @@ export const SidebarNavigationSimple = ({
     showAccountCard = true,
     hideBorder = false,
     className,
+    mobileHeader,
 }: SidebarNavigationProps) => {
     const MAIN_SIDEBAR_WIDTH = 280;
 
@@ -87,7 +90,7 @@ export const SidebarNavigationSimple = ({
     return (
         <>
             {/* Mobile header navigation */}
-            <MobileNavigationHeader>{content}</MobileNavigationHeader>
+            {mobileHeader ?? <MobileNavigationHeader>{content}</MobileNavigationHeader>}
 
             {/* Desktop sidebar navigation */}
             <div className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:flex">{content}</div>

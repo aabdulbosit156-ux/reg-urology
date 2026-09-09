@@ -57,24 +57,26 @@ export const MonthView = ({
                     return (
                         <div
                             key={day.toISOString()}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => onSelectDay(day)}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                    onSelectDay(day);
+                                }
+                            }}
                             onDragOver={(event) => event.preventDefault()}
                             onDrop={(event) => handleDrop(event, day)}
                             className={cx(
-                                "flex min-h-24 flex-col gap-1 rounded-lg p-1.5 ring-1 ring-secondary",
+                                "flex min-h-24 cursor-pointer flex-col gap-1 rounded-lg p-1.5 ring-1 ring-secondary outline-focus-ring transition duration-100 ease-linear hover:ring-brand",
                                 isCurrentMonth ? "bg-primary" : "bg-secondary",
                                 isSameDay(day, today) && "ring-2 ring-brand",
                             )}
                         >
-                            <button
-                                type="button"
-                                onClick={() => onSelectDay(day)}
-                                className={cx(
-                                    "self-start rounded px-1 text-xs font-semibold outline-focus-ring",
-                                    isCurrentMonth ? "text-primary" : "text-quaternary",
-                                )}
-                            >
+                            <p className={cx("self-start px-1 text-xs font-semibold", isCurrentMonth ? "text-primary" : "text-quaternary")}>
                                 {day.getDate()}
-                            </button>
+                            </p>
                             {dayAppointments.slice(0, MAX_VISIBLE).map((a) => (
                                 <AppointmentCard
                                     key={a.id}
@@ -84,13 +86,7 @@ export const MonthView = ({
                                 />
                             ))}
                             {dayAppointments.length > MAX_VISIBLE && (
-                                <button
-                                    type="button"
-                                    onClick={() => onSelectDay(day)}
-                                    className="text-left text-xs text-tertiary hover:underline"
-                                >
-                                    +{dayAppointments.length - MAX_VISIBLE} ko'proq
-                                </button>
+                                <p className="text-left text-xs text-tertiary">+{dayAppointments.length - MAX_VISIBLE} ko'proq</p>
                             )}
                         </div>
                     );

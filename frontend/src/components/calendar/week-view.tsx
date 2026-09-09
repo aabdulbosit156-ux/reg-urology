@@ -37,20 +37,23 @@ export const WeekView = ({ weekStart, appointments, onOpenPatient, onReschedule,
                 return (
                     <div
                         key={day.toISOString()}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => onSelectDay(day)}
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                onSelectDay(day);
+                            }
+                        }}
                         onDragOver={(event) => event.preventDefault()}
                         onDrop={(event) => handleDrop(event, day)}
                         className={cx(
-                            "flex min-h-32 flex-col gap-1.5 rounded-lg p-2 ring-1 ring-secondary",
+                            "flex min-h-32 cursor-pointer flex-col gap-1.5 rounded-lg p-2 ring-1 ring-secondary outline-focus-ring transition duration-100 ease-linear hover:ring-brand",
                             isSameDay(day, today) ? "bg-brand-primary_alt" : "bg-primary",
                         )}
                     >
-                        <button
-                            type="button"
-                            onClick={() => onSelectDay(day)}
-                            className="self-start rounded px-1 text-xs font-semibold text-tertiary capitalize outline-focus-ring hover:text-secondary hover:underline"
-                        >
-                            {formatDayShortUz(day)}
-                        </button>
+                        <p className="self-start px-1 text-xs font-semibold text-tertiary capitalize">{formatDayShortUz(day)}</p>
                         {dayAppointments.length === 0 && <p className="text-xs text-quaternary">—</p>}
                         {dayAppointments.map((a) => (
                             <AppointmentCard

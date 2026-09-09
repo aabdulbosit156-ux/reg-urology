@@ -36,22 +36,16 @@ export const PatientTable = ({ patients, canManage, onOpen, onDelete }: PatientT
                 )}
             >
                 {(patient) => (
-                    <Table.Row id={patient.id} columns={COLUMNS}>
+                    <Table.Row id={patient.id} columns={COLUMNS} onAction={() => onOpen(patient.id)} className="cursor-pointer">
                         {(column) => {
                             switch (column.id) {
                                 case "patient":
                                     return (
                                         <Table.Cell>
-                                            <button
-                                                type="button"
-                                                onClick={() => onOpen(patient.id)}
-                                                className="cursor-pointer text-left outline-focus-ring focus-visible:outline-2"
-                                            >
-                                                <p className="text-sm font-medium text-primary hover:underline">{patient.full_name}</p>
-                                                {patient.telegram_username && (
-                                                    <p className="text-xs text-tertiary">@{patient.telegram_username}</p>
-                                                )}
-                                            </button>
+                                            <p className="text-sm font-medium text-primary">{patient.full_name}</p>
+                                            {patient.telegram_username && (
+                                                <p className="text-xs text-tertiary">@{patient.telegram_username}</p>
+                                            )}
                                         </Table.Cell>
                                     );
                                 case "phone":
