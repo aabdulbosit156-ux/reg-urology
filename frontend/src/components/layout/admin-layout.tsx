@@ -21,6 +21,9 @@ export const AdminLayout = () => {
         navItems.push({ label: "Sozlamalar", href: "/settings", icon: Settings01 });
     }
 
+    // Faoliyat is a desktop admin task — leave it out of the mobile bottom bar so it doesn't crowd out the rest.
+    const mobileNavItems = navItems.filter((item) => item.label !== "Faoliyat");
+
     return (
         <div className="flex min-h-screen bg-secondary">
             <SidebarNavigationSimple
@@ -32,7 +35,7 @@ export const AdminLayout = () => {
             <main className="w-full flex-1 px-4 py-6 pb-24 lg:px-8 lg:py-8">
                 <Outlet />
             </main>
-            <MobileBottomNav activeUrl={location.pathname} items={navItems} />
+            <MobileBottomNav activeUrl={location.pathname} items={mobileNavItems} />
         </div>
     );
 };
