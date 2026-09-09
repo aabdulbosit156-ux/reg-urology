@@ -36,6 +36,19 @@ class Settings(BaseSettings):
             return None
         return value
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _force_asyncpg_driver(cls, value: object) -> object:
+        # Railway (and other PaaS) inject DATABASE_URL as postgres:// or postgresql://,
+        # which makes SQLAlchemy default to the sync psycopg2 driver — not installed here,
+        # since this app only uses the async asyncpg driver.
+        if isinstance(value, str):
+            if value.startswith("postgres://"):
+                return "postgresql+asyncpg://" + value[len("postgres://") :]
+            if value.startswith("postgresql://"):
+                return "postgresql+asyncpg://" + value[len("postgresql://") :]
+        return value
+
 
 @lru_cache
 def get_settings() -> Settings:
