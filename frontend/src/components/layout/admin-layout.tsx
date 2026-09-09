@@ -25,7 +25,7 @@ export const AdminLayout = () => {
     const mobileNavItems = navItems.filter((item) => item.label !== "Faoliyat");
 
     return (
-        <div className="flex min-h-screen bg-secondary">
+        <div className="flex min-h-screen flex-col bg-secondary lg:flex-row">
             <SidebarNavigationSimple
                 activeUrl={location.pathname}
                 items={navItems}
