@@ -10,6 +10,9 @@
         "icons": "node scripts/generate-icons.mjs"
     },
     "dependencies": {
+        "@react-aria/utils": "^3.34.1",
+        "@react-stately/utils": "^3.12.1",
+        "@react-types/overlays": "^3.10.0",
         "@tailwindcss/typography": "^0.5.19",
         "@tailwindcss/vite": "^4.2.2",
         "@untitledui/file-icons": "^0.0.9",

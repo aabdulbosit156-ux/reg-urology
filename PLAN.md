@@ -15,8 +15,8 @@ reg-urology/
 - **Deploy:** Railway. Har bir root papka uchun alohida `Dockerfile`.
 - **Bot:** aiogram (long-polling dev / webhook prod). Bir bot ham bemor, ham xodim uchun (rolga qarab menyu farqlanadi).
 - **Realtime:** admin panelga status yangilanishi uchun WebSocket yoki SSE (dashboard va bemorlar ro'yxati jonli yangilanadi).
-- **Fayllar:** analiz rasmlari/PDF — object storage (Railway volume yoki S3-mos) + DB'da metadata.
-- **AI:** sozlamalarda ulanadigan token (Claude API) orqali analiz tahlili.
+- **Fayllar:** analiz rasmlari/PDF doimiy saqlanmaydi — Telegram serverlarida (`file_id` orqali), volume faqat qisqa muddatli oraliq bosqich (bo'lim 9'ga qarang).
+- **AI:** sozlamalarda ulanadigan token (OpenAI, faqat rasm tahlili — PDF avtomatik rasmga aylantiriladi) orqali analiz tahlili.
 
 ---
 

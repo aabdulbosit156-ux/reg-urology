@@ -20,16 +20,31 @@ class CurrentPrincipal:
     role: StaffRole
 
 
+def _principal_from_token(token: str) -> CurrentPrincipal:
+    try:
+        payload = decode_access_token(token)
+    except jwt.PyJWTError as exc:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token") from exc
+    return CurrentPrincipal(sub=payload["sub"], role=StaffRole(payload["role"]))
+
+
 def get_current_principal(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
 ) -> CurrentPrincipal:
     if credentials is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
-    try:
-        payload = decode_access_token(credentials.credentials)
-    except jwt.PyJWTError as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token") from exc
-    return CurrentPrincipal(sub=payload["sub"], role=StaffRole(payload["role"]))
+    return _principal_from_token(credentials.credentials)
+
+
+def get_principal_for_sse(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    token: str | None = None,
+) -> CurrentPrincipal:
+    # EventSource can't set an Authorization header, so the SSE route also accepts ?token=.
+    raw_token = credentials.credentials if credentials else token
+    if raw_token is None:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
+    return _principal_from_token(raw_token)
 
 
 def require_roles(*roles: StaffRole):

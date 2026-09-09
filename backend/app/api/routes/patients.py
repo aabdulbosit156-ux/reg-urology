@@ -26,6 +26,8 @@ from app.schemas.patient import (
     StatusHistoryOut,
 )
 from app.services import telegram
+from app.services.bot_texts import resolve_bot_texts
+from app.services.events import broadcast
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 settings = get_settings()
@@ -50,18 +52,14 @@ VALID_TRANSITIONS: dict[PatientStatus, set[PatientStatus]] = {
     PatientStatus.advised: {PatientStatus.scheduled},
 }
 
-STATUS_NOTIFICATIONS: dict[PatientStatus, str] = {
-    PatientStatus.scheduled: "Sizning qabul vaqtingiz belgilandi: {when}.",
-    PatientStatus.unreachable: (
-        "Siz bilan bog'lanishga urinib ko'rdik, ammo bog'lana olmadik. Tez orada qayta aloqaga chiqamiz."
-    ),
-    PatientStatus.advised: "Sizga maslahat berildi. Savollaringiz bo'lsa, biz bilan bog'laning.",
-    PatientStatus.no_show: "Siz belgilangan qabulga kelmadingiz. Qayta band qilish uchun tez orada bog'lanamiz.",
-    PatientStatus.arrived: "Qabulga kelganingiz qayd etildi. Rahmat!",
-    PatientStatus.analysis_ordered: (
-        "Sizga analiz buyurildi. Namunani suratga olib botga yuboring — mutaxassislarimiz maslahat beradi."
-    ),
-    PatientStatus.analysis_ready: "Analiz natijalaringiz tayyor.",
+STATUS_NOTIFICATION_KEYS: dict[PatientStatus, str] = {
+    PatientStatus.scheduled: "status_scheduled",
+    PatientStatus.unreachable: "status_unreachable",
+    PatientStatus.advised: "status_advised",
+    PatientStatus.no_show: "status_no_show",
+    PatientStatus.arrived: "status_arrived",
+    PatientStatus.analysis_ordered: "status_analysis_ordered",
+    PatientStatus.analysis_ready: "status_analysis_ready",
 }
 
 
@@ -157,6 +155,7 @@ async def create_patient(
     )
     await db.commit()
     await db.refresh(patient)
+    broadcast()
     return _to_out(patient)
 
 
@@ -269,9 +268,12 @@ async def change_status(
     )
     await db.commit()
     await db.refresh(patient)
+    broadcast()
 
-    text = STATUS_NOTIFICATIONS.get(payload.to_status)
-    if text:
+    text_key = STATUS_NOTIFICATION_KEYS.get(payload.to_status)
+    if text_key:
+        texts = await resolve_bot_texts(db)
+        text = texts[text_key]
         if notification_when:
             text = text.format(when=notification_when)
         await telegram.send_text(db, patient.telegram_user_id, text)
@@ -297,3 +299,4 @@ async def delete_patient(
     )
     await db.delete(patient)
     await db.commit()
+    broadcast()

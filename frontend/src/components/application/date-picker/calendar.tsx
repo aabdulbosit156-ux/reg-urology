@@ -19,8 +19,14 @@ import { cx } from "@/utils/cx";
 import { CalendarCell } from "./cell";
 
 export const CalendarContextProvider = ({ children }: PropsWithChildren) => {
-    const [value, onChange] = useState<DateValue | null>(null);
+    const [value, setValue] = useState<DateValue | null>(null);
     const [focusedValue, onFocusChange] = useState<DateValue | undefined>();
+
+    // This context also backs RangeCalendar, whose onChange can receive an array of dates —
+    // this provider only supports single-date selection, so narrow to the first value.
+    const onChange = (next: DateValue | readonly DateValue[]) => {
+        setValue(Array.isArray(next) ? (next[0] ?? null) : (next as DateValue));
+    };
 
     return <AriaCalendarContext.Provider value={{ value, onChange, focusedValue, onFocusChange }}>{children}</AriaCalendarContext.Provider>;
 };

@@ -1,3 +1,5 @@
+import uuid
+
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -12,6 +14,7 @@ STATUS_BTN = "Status"
 DOCUMENTS_BTN = "Hujjatlar"
 CLINIC_BTN = "Klinika haqida"
 SKIP_GOAL_CALLBACK = "skip_goal"
+AI_ANALYZE_CALLBACK_PREFIX = "ai_analyze:"
 
 
 def main_menu_kb() -> ReplyKeyboardMarkup:
@@ -36,6 +39,19 @@ def goal_skip_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="O'tkazib yuborish", callback_data=SKIP_GOAL_CALLBACK)]
+        ]
+    )
+
+
+def ai_analyze_kb(analysis_id: uuid.UUID) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="✨ Analizni tahlil qilish",
+                    callback_data=f"{AI_ANALYZE_CALLBACK_PREFIX}{analysis_id}",
+                )
+            ]
         ]
     )
 

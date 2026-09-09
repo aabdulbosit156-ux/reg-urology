@@ -1,19 +1,30 @@
-import { Users01 } from "@untitledui/icons";
+import { Activity, BarChartSquare02, Calendar, Settings01, Users01, Users03 } from "@untitledui/icons";
 import { Outlet, useLocation } from "react-router";
 import type { NavItemType } from "@/components/application/app-navigation/config";
 import { SidebarNavigationSimple } from "@/components/application/app-navigation/sidebar-navigation/sidebar-simple";
 import { AccountFooter } from "@/components/layout/account-footer";
-
-const NAV_ITEMS: NavItemType[] = [{ label: "Bemorlar", href: "/patients", icon: Users01 }];
+import { useAuth } from "@/providers/auth-provider";
 
 export const AdminLayout = () => {
     const location = useLocation();
+    const { me } = useAuth();
+
+    const navItems: NavItemType[] = [{ label: "Dashboard", href: "/dashboard", icon: BarChartSquare02 }];
+    navItems.push({ label: "Bemorlar", href: "/patients", icon: Users01 });
+    if (me?.role !== "analyst") {
+        navItems.push({ label: "Kalendar", href: "/calendar", icon: Calendar });
+        navItems.push({ label: "Xodimlar", href: "/staff", icon: Users03 });
+    }
+    if (me?.role === "dev" || me?.role === "director") {
+        navItems.push({ label: "Faoliyat", href: "/activity", icon: Activity });
+        navItems.push({ label: "Sozlamalar", href: "/settings", icon: Settings01 });
+    }
 
     return (
         <div className="flex min-h-screen bg-secondary">
             <SidebarNavigationSimple
                 activeUrl={location.pathname}
-                items={NAV_ITEMS}
+                items={navItems}
                 showAccountCard={false}
                 featureCard={<AccountFooter />}
             />

@@ -1,5 +1,10 @@
 import { clearToken, getToken } from "@/lib/auth-storage";
 
+// In dev, Vite proxies "/api" to the local backend (see vite.config.ts). In production the
+// frontend and backend are separate Railway services, so VITE_API_URL points at the backend's
+// public URL (e.g. https://regurolog-api.up.railway.app) and gets baked in at build time.
+const API_BASE = import.meta.env.VITE_API_URL ?? "/api";
+
 export class ApiError extends Error {
     status: number;
 
@@ -29,7 +34,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     if (token) finalHeaders.set("Authorization", `Bearer ${token}`);
     if (body !== undefined && !isFormData) finalHeaders.set("Content-Type", "application/json");
 
-    const response = await fetch(`/api${path}`, {
+    const response = await fetch(`${API_BASE}${path}`, {
         ...rest,
         headers: finalHeaders,
         body: body === undefined ? undefined : isFormData ? (body as FormData) : JSON.stringify(body),
@@ -70,7 +75,7 @@ export async function fetchBlob(path: string): Promise<Blob> {
     const headers = new Headers();
     if (token) headers.set("Authorization", `Bearer ${token}`);
 
-    const response = await fetch(`/api${path}`, { headers });
+    const response = await fetch(`${API_BASE}${path}`, { headers });
     if (response.status === 401) {
         clearToken();
         onUnauthorized?.();

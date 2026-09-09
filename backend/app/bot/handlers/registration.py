@@ -8,6 +8,7 @@ from app.bot.states import Registration
 from app.database import AsyncSessionLocal
 from app.models.patient import Patient, PatientSource, PatientStatus
 from app.models.status_history import StatusHistory
+from app.services.telegram import notify_web_of_change
 
 router = Router(name="registration")
 
@@ -110,6 +111,7 @@ async def _finish_registration(
             patient.consultation_goal = goal
         await db.commit()
 
+    await notify_web_of_change()
     await state.clear()
     await answer_target.answer(
         "Muvaffaqiyatli ro'yxatdan o'tdingiz! Tez orada mutaxassislarimiz siz bilan bog'lanadi.",

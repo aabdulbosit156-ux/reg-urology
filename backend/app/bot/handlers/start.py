@@ -11,6 +11,7 @@ from app.config import get_settings
 from app.database import AsyncSessionLocal
 from app.models.patient import Patient
 from app.models.staff import StaffRole
+from app.services.bot_texts import resolve_bot_texts
 
 router = Router(name="start")
 settings = get_settings()
@@ -41,13 +42,16 @@ async def handle_start(message: Message, command: CommandObject, state: FSMConte
             select(Patient).where(Patient.telegram_user_id == message.from_user.id)
         )
         patient = result.scalar_one_or_none()
+        texts = await resolve_bot_texts(db)
 
     if patient is not None:
-        await message.answer(f"Xush kelibsiz, {patient.full_name}!", reply_markup=main_menu_kb())
+        await message.answer(
+            texts["welcome_returning"].format(full_name=patient.full_name), reply_markup=main_menu_kb()
+        )
         return
 
     await state.set_state(Registration.full_name)
-    await message.answer("Assalomu alaykum! Ism-familiyangizni to'liq kiriting.")
+    await message.answer(texts["welcome_new"])
 
 
 async def _handle_staff_onboarding(message: Message, token: str) -> None:

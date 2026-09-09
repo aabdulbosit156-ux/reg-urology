@@ -7,6 +7,7 @@ import { Input } from "@/components/base/input/input";
 import { AddPatientModal } from "@/components/patients/add-patient-modal";
 import { PatientSlideout } from "@/components/patients/patient-slideout";
 import { PatientTable } from "@/components/patients/patient-table";
+import { useLiveUpdates } from "@/hooks/use-live-updates";
 import { ApiError, api } from "@/lib/api-client";
 import { SEGMENT_LABELS } from "@/lib/patient-status";
 import { useAuth } from "@/providers/auth-provider";
@@ -59,6 +60,8 @@ export const PatientsPage = () => {
     useEffect(() => {
         loadPatients();
     }, [loadPatients]);
+
+    useLiveUpdates(loadPatients);
 
     const handleDelete = async () => {
         if (!deleteTarget) return;

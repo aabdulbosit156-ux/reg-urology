@@ -72,6 +72,19 @@ async def send_document(
     return document["file_id"], document["file_unique_id"]
 
 
+async def notify_web_of_change() -> None:
+    """Wakes up the web process's SSE subscribers after the bot process (a separate
+    container) writes patients/analyses on its own — see app/api/routes/events.py."""
+    async with httpx.AsyncClient(timeout=5) as client:
+        try:
+            await client.post(
+                f"{settings.api_base_url}/api/events/broadcast",
+                headers={"X-Bot-Secret": settings.bot_internal_secret},
+            )
+        except httpx.HTTPError:
+            logger.warning("Failed to notify web process of a change")
+
+
 async def download_file(db: AsyncSession, file_id: str) -> bytes | None:
     token = await resolve_bot_token(db)
     if not token:

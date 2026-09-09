@@ -8,22 +8,18 @@ from app.models.analysis import Analysis
 from app.models.appointment import Appointment, AppointmentStatus
 from app.models.clinic_settings import ClinicSettings
 from app.models.patient import Patient, PatientStatus
+from app.services.bot_texts import resolve_bot_texts
 
 router = Router(name="menu")
 
-STATUS_MESSAGES = {
-    PatientStatus.new: "Arizangiz qabul qilindi. Mutaxassislarimiz tez orada siz bilan bog'lanadi.",
-    PatientStatus.unreachable: (
-        "Siz bilan bog'lanishga urinib ko'rdik, ammo bog'lana olmadik. Tez orada qayta aloqaga chiqamiz."
-    ),
-    PatientStatus.advised: "Sizga mutaxassis tomonidan maslahat berilgan.",
-    PatientStatus.no_show: "Belgilangan qabulga kelmadingiz. Qayta band qilish uchun tez orada bog'lanamiz.",
-    PatientStatus.arrived: "Qabulga kelganingiz qayd etildi.",
-    PatientStatus.analysis_ordered: (
-        "Sizga analiz buyurildi. Namunani suratga olib botga yuboring yoki faylni yuklang "
-        "— mutaxassislarimiz maslahat beradi."
-    ),
-    PatientStatus.analysis_ready: "Analiz natijalaringiz tayyor.",
+STATUS_TEXT_KEYS = {
+    PatientStatus.new: "status_new",
+    PatientStatus.unreachable: "status_unreachable",
+    PatientStatus.advised: "status_advised",
+    PatientStatus.no_show: "status_no_show",
+    PatientStatus.arrived: "status_arrived",
+    PatientStatus.analysis_ordered: "status_analysis_ordered",
+    PatientStatus.analysis_ready: "status_analysis_ready",
 }
 
 
@@ -40,8 +36,9 @@ async def handle_status(message: Message) -> None:
         await message.answer("Siz hali ro'yxatdan o'tmagansiz. /start buyrug'ini yuboring.")
         return
 
-    if patient.status == PatientStatus.scheduled:
-        async with AsyncSessionLocal() as db:
+    async with AsyncSessionLocal() as db:
+        texts = await resolve_bot_texts(db)
+        if patient.status == PatientStatus.scheduled:
             result = await db.execute(
                 select(Appointment)
                 .where(
@@ -51,12 +48,13 @@ async def handle_status(message: Message) -> None:
                 .order_by(Appointment.start_at.desc())
             )
             appointment = result.scalars().first()
-        if appointment is not None:
-            when = appointment.start_at.strftime("%d.%m.%Y %H:%M")
-            await message.answer(f"Qabulingiz band qilingan: {when}.")
-            return
+            if appointment is not None:
+                when = appointment.start_at.strftime("%d.%m.%Y %H:%M")
+                await message.answer(f"Qabulingiz band qilingan: {when}.")
+                return
 
-    await message.answer(STATUS_MESSAGES.get(patient.status, "Holatingiz yangilanmoqda."))
+    text_key = STATUS_TEXT_KEYS.get(patient.status)
+    await message.answer(texts.get(text_key, "Holatingiz yangilanmoqda.") if text_key else "Holatingiz yangilanmoqda.")
 
 
 @router.message(F.text == DOCUMENTS_BTN)

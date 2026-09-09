@@ -16,6 +16,7 @@ from app.schemas.appointment import (
     CalendarAppointmentOut,
 )
 from app.services import telegram
+from app.services.events import broadcast
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -81,6 +82,7 @@ async def reschedule_appointment(
         )
     )
     await db.commit()
+    broadcast()
 
     when = payload.start_at.strftime("%d.%m.%Y %H:%M")
     await telegram.send_text(db, patient.telegram_user_id, f"Sizning qabul vaqtingiz o'zgartirildi: {when}.")

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, UploadCloud02 } from "@untitledui/icons";
+import { Check, Stars02, UploadCloud02 } from "@untitledui/icons";
 import { SlideoutMenu } from "@/components/application/slideout-menus/slideout-menu";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
@@ -45,6 +45,9 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
     const [uploadFile, setUploadFile] = useState<File | null>(null);
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+
+    const [aiLoadingId, setAiLoadingId] = useState<string | null>(null);
+    const [aiError, setAiError] = useState<string | null>(null);
 
     const loadPatient = useCallback(async () => {
         if (!patientId) return;
@@ -117,6 +120,19 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
             setUploadError(err instanceof ApiError ? err.message : "Yuklashda xatolik");
         } finally {
             setIsUploading(false);
+        }
+    };
+
+    const handleGenerateAiReport = async (analysisId: string) => {
+        setAiError(null);
+        setAiLoadingId(analysisId);
+        try {
+            await api.post(`/analysis/${analysisId}/ai-report`);
+            await loadPatient();
+        } catch (err) {
+            setAiError(err instanceof ApiError ? err.message : "AI tahlilida xatolik");
+        } finally {
+            setAiLoadingId(null);
         }
     };
 
@@ -278,18 +294,39 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
                                 <div className="flex flex-col gap-2">
                                     <p className="text-sm font-semibold text-secondary">Hujjatlar</p>
                                     {patient.analyses.length === 0 && <p className="text-sm text-tertiary">Hozircha hujjatlar yo'q</p>}
+                                    {aiError && <p className="text-sm text-error-primary">{aiError}</p>}
                                     {patient.analyses.map((a) => (
-                                        <div key={a.id} className="flex items-center justify-between gap-2 rounded-lg bg-secondary px-3 py-2">
-                                            <div className="min-w-0">
-                                                <p className="truncate text-sm text-primary">{a.file_name || "Fayl"}</p>
-                                                <p className="text-xs text-tertiary">
-                                                    {a.uploaded_by === "staff" ? "Klinika yukladi" : "Bemor yukladi"} ·{" "}
-                                                    {formatDateTime(a.created_at)}
-                                                </p>
+                                        <div key={a.id} className="flex flex-col gap-2 rounded-lg bg-secondary px-3 py-2">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="min-w-0">
+                                                    <p className="truncate text-sm text-primary">{a.file_name || "Fayl"}</p>
+                                                    <p className="text-xs text-tertiary">
+                                                        {a.uploaded_by === "staff" ? "Klinika yukladi" : "Bemor yukladi"} ·{" "}
+                                                        {formatDateTime(a.created_at)}
+                                                    </p>
+                                                </div>
+                                                <div className="flex shrink-0 gap-1.5">
+                                                    <Button size="sm" color="tertiary" onClick={() => handleViewFile(a.id)}>
+                                                        Ko'rish
+                                                    </Button>
+                                                    {!a.ai_report && (
+                                                        <Button
+                                                            size="sm"
+                                                            color="secondary"
+                                                            iconLeading={Stars02}
+                                                            isLoading={aiLoadingId === a.id}
+                                                            onClick={() => handleGenerateAiReport(a.id)}
+                                                        >
+                                                            AI tahlil
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <Button size="sm" color="tertiary" onClick={() => handleViewFile(a.id)}>
-                                                Ko'rish
-                                            </Button>
+                                            {a.ai_report && (
+                                                <div className="rounded-md bg-primary p-2.5 ring-1 ring-secondary">
+                                                    <p className="text-xs whitespace-pre-wrap text-secondary">{a.ai_report}</p>
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>

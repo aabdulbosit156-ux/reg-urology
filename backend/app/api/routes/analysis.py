@@ -10,7 +10,8 @@ from app.models.analysis import Analysis, AnalysisUploadedBy
 from app.models.patient import Patient, PatientStatus
 from app.models.staff import StaffRole
 from app.schemas.analysis import AnalysisOut
-from app.services import telegram
+from app.services import ai_analysis, telegram
+from app.services.events import broadcast
 
 router = APIRouter(tags=["analysis"])
 
@@ -63,6 +64,7 @@ async def upload_analysis(
     db.add(analysis)
     await db.commit()
     await db.refresh(analysis)
+    broadcast()
     return AnalysisOut.model_validate(analysis)
 
 
@@ -82,3 +84,31 @@ async def get_analysis_file(
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Bot tokeni sozlanmagan")
 
     return Response(content=content, media_type=analysis.mime_type or "application/octet-stream")
+
+
+@router.post("/analysis/{analysis_id}/ai-report", response_model=AnalysisOut)
+async def generate_ai_report(
+    analysis_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _: CurrentPrincipal = Depends(require_roles(*STAFF_ROLES)),
+) -> AnalysisOut:
+    result = await db.execute(select(Analysis).where(Analysis.id == analysis_id))
+    analysis = result.scalar_one_or_none()
+    if analysis is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Fayl topilmadi")
+
+    try:
+        report = await ai_analysis.analyze_lab_report(db, analysis)
+    except ai_analysis.AIAnalysisError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+
+    analysis.ai_report = report
+    await db.commit()
+    await db.refresh(analysis)
+
+    patient_result = await db.execute(select(Patient).where(Patient.id == analysis.patient_id))
+    patient = patient_result.scalar_one_or_none()
+    if patient and patient.telegram_user_id:
+        await telegram.send_text(db, patient.telegram_user_id, f"\U0001f4cb Analiz tahlili:\n\n{report}")
+
+    return AnalysisOut.model_validate(analysis)

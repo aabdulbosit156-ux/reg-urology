@@ -6,11 +6,12 @@ from aiogram import F, Router
 from aiogram.types import FSInputFile, Message
 from sqlalchemy import select
 
-from app.bot.keyboards import main_menu_kb
+from app.bot.keyboards import ai_analyze_kb, main_menu_kb
 from app.config import get_settings
 from app.database import AsyncSessionLocal
 from app.models.analysis import Analysis, AnalysisUploadedBy
 from app.models.patient import Patient, PatientStatus
+from app.services.telegram import notify_web_of_change
 
 router = Router(name="analysis_upload")
 settings = get_settings()
@@ -67,17 +68,22 @@ async def handle_analysis_file(message: Message) -> None:
             os.remove(tmp_path)
 
     async with AsyncSessionLocal() as db:
-        db.add(
-            Analysis(
-                patient_id=patient.id,
-                uploaded_by=AnalysisUploadedBy.patient,
-                telegram_file_id=stored_file_id,
-                telegram_file_unique_id=stored_file_unique_id,
-                file_name=file_name,
-                mime_type=mime_type,
-                ordered=True,
-            )
+        analysis = Analysis(
+            patient_id=patient.id,
+            uploaded_by=AnalysisUploadedBy.patient,
+            telegram_file_id=stored_file_id,
+            telegram_file_unique_id=stored_file_unique_id,
+            file_name=file_name,
+            mime_type=mime_type,
+            ordered=True,
         )
+        db.add(analysis)
         await db.commit()
+        await db.refresh(analysis)
 
-    await message.answer("Analiz muvaffaqiyatli yuklandi. Rahmat! Mutaxassislarimiz tez orada ko'rib chiqadi.")
+    await notify_web_of_change()
+    await message.answer(
+        "Analiz muvaffaqiyatli yuklandi. Rahmat! Mutaxassislarimiz tez orada ko'rib chiqadi.\n\n"
+        "Mutaxassis maslahatini olishni xohlaysizmi?",
+        reply_markup=ai_analyze_kb(analysis.id),
+    )
