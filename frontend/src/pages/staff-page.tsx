@@ -1,8 +1,13 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Plus } from "@untitledui/icons";
 import { Table } from "@/components/application/table/table";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
+import { Button } from "@/components/base/buttons/button";
+import { InviteStaffModal } from "@/components/staff/invite-staff-modal";
+import { useLiveUpdates } from "@/hooks/use-live-updates";
 import { ApiError, api } from "@/lib/api-client";
 import { ROLE_BADGE_COLOR, ROLE_LABELS } from "@/lib/staff-role";
+import { useAuth } from "@/providers/auth-provider";
 import type { StaffStatsOut } from "@/types/staff";
 
 interface Column {
@@ -19,33 +24,43 @@ const COLUMNS: Column[] = [
 ];
 
 export const StaffPage = () => {
+    const { me } = useAuth();
+    const canInvite = me?.role === "dev" || me?.role === "director";
+
     const [staff, setStaff] = useState<StaffStatsOut[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [isInviteOpen, setIsInviteOpen] = useState(false);
+
+    const loadStaff = useCallback(async () => {
+        try {
+            const result = await api.get<StaffStatsOut[]>("/staff");
+            setStaff(result);
+        } catch (err) {
+            setError(err instanceof ApiError ? err.message : "Xodimlarni yuklashda xatolik");
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
-        let cancelled = false;
-        setIsLoading(true);
-        api.get<StaffStatsOut[]>("/staff")
-            .then((result) => {
-                if (!cancelled) setStaff(result);
-            })
-            .catch((err) => {
-                if (!cancelled) setError(err instanceof ApiError ? err.message : "Xodimlarni yuklashda xatolik");
-            })
-            .finally(() => {
-                if (!cancelled) setIsLoading(false);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, []);
+        loadStaff();
+    }, [loadStaff]);
+
+    useLiveUpdates(loadStaff);
 
     return (
         <div className="flex flex-col gap-6">
-            <div>
-                <h1 className="text-xl font-semibold text-primary">Xodimlar</h1>
-                <p className="text-sm text-tertiary">{staff.length} ta xodim</p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h1 className="text-xl font-semibold text-primary">Xodimlar</h1>
+                    <p className="text-sm text-tertiary">{staff.length} ta xodim</p>
+                </div>
+                {canInvite && (
+                    <Button iconLeading={Plus} onClick={() => setIsInviteOpen(true)}>
+                        Xodim qo'shish
+                    </Button>
+                )}
             </div>
 
             {error && <p className="text-sm text-error-primary">{error}</p>}
@@ -100,6 +115,8 @@ export const StaffPage = () => {
                     </Table.Body>
                 </Table>
             )}
+
+            {canInvite && <InviteStaffModal isOpen={isInviteOpen} onOpenChange={setIsInviteOpen} />}
         </div>
     );
 };

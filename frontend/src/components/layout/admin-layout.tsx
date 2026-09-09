@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router";
 import type { NavItemType } from "@/components/application/app-navigation/config";
 import { SidebarNavigationSimple } from "@/components/application/app-navigation/sidebar-navigation/sidebar-simple";
 import { AccountFooter } from "@/components/layout/account-footer";
+import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { useAuth } from "@/providers/auth-provider";
 
 export const AdminLayout = () => {
@@ -28,9 +29,10 @@ export const AdminLayout = () => {
                 showAccountCard={false}
                 featureCard={<AccountFooter />}
             />
-            <main className="w-full flex-1 px-4 py-6 lg:px-8 lg:py-8">
+            <main className="w-full flex-1 px-4 py-6 pb-24 lg:px-8 lg:py-8">
                 <Outlet />
             </main>
+            <MobileBottomNav activeUrl={location.pathname} items={navItems} />
         </div>
     );
 };

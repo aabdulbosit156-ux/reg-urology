@@ -6,7 +6,6 @@ from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentPrincipal, get_db, require_roles, staff_id_or_none
-from app.config import get_settings
 from app.models.activity_log import ActivityLog
 from app.models.analysis import Analysis
 from app.models.appointment import Appointment, AppointmentStatus
@@ -30,7 +29,6 @@ from app.services.bot_texts import resolve_bot_texts
 from app.services.events import broadcast
 
 router = APIRouter(prefix="/patients", tags=["patients"])
-settings = get_settings()
 
 VIEW_ROLES = (StaffRole.dev, StaffRole.director, StaffRole.admin, StaffRole.analyst)
 MANAGE_ROLES = (StaffRole.dev, StaffRole.director, StaffRole.admin)
@@ -63,10 +61,10 @@ STATUS_NOTIFICATION_KEYS: dict[PatientStatus, str] = {
 }
 
 
-def _to_out(patient: Patient) -> PatientOut:
+def _to_out(patient: Patient, bot_username: str | None) -> PatientOut:
     deep_link = None
-    if patient.invite_token and settings.bot_username:
-        deep_link = f"https://t.me/{settings.bot_username}?start=invite_{patient.invite_token}"
+    if patient.invite_token and bot_username:
+        deep_link = f"https://t.me/{bot_username}?start=invite_{patient.invite_token}"
     return PatientOut(
         id=patient.id,
         full_name=patient.full_name,
@@ -115,7 +113,8 @@ async def list_patients(
     result = await db.execute(stmt)
     patients = result.scalars().all()
 
-    return PatientListResponse(items=[_to_out(p) for p in patients], total=total)
+    bot_username = await telegram.resolve_bot_username(db)
+    return PatientListResponse(items=[_to_out(p, bot_username) for p in patients], total=total)
 
 
 @router.post("", response_model=PatientOut, status_code=status.HTTP_201_CREATED)
@@ -156,7 +155,7 @@ async def create_patient(
     await db.commit()
     await db.refresh(patient)
     broadcast()
-    return _to_out(patient)
+    return _to_out(patient, await telegram.resolve_bot_username(db))
 
 
 @router.get("/{patient_id}", response_model=PatientDetailResponse)
@@ -200,8 +199,9 @@ async def get_patient(
     )
     analyses = [AnalysisOut.model_validate(a) for a in analyses_result.scalars().all()]
 
+    bot_username = await telegram.resolve_bot_username(db)
     return PatientDetailResponse(
-        **_to_out(patient).model_dump(), history=history, appointments=appointments, analyses=analyses
+        **_to_out(patient, bot_username).model_dump(), history=history, appointments=appointments, analyses=analyses
     )
 
 
@@ -278,7 +278,7 @@ async def change_status(
             text = text.format(when=notification_when)
         await telegram.send_text(db, patient.telegram_user_id, text)
 
-    return _to_out(patient)
+    return _to_out(patient, await telegram.resolve_bot_username(db))
 
 
 @router.delete("/{patient_id}", status_code=status.HTTP_204_NO_CONTENT)

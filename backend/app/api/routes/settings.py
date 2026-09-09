@@ -21,6 +21,7 @@ from app.schemas.settings import (
     ScheduleSettingsUpdate,
 )
 from app.services.bot_texts import DEFAULT_BOT_TEXTS, resolve_bot_texts
+from app.services.telegram import fetch_bot_username, resolve_bot_username
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 env_settings = get_settings()
@@ -114,7 +115,7 @@ async def get_bot_settings(db: AsyncSession = Depends(get_db)) -> BotSettingsOut
     row = await _get_or_create_settings(db)
     return BotSettingsOut(
         bot_token_configured=bool(row.bot_token or env_settings.bot_token),
-        bot_username=env_settings.bot_username or None,
+        bot_username=await resolve_bot_username(db),
     )
 
 
@@ -126,10 +127,15 @@ async def get_bot_settings(db: AsyncSession = Depends(get_db)) -> BotSettingsOut
 async def update_bot_settings(
     payload: BotSettingsUpdate, db: AsyncSession = Depends(get_db)
 ) -> BotSettingsOut:
+    username = await fetch_bot_username(payload.bot_token)
+    if username is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Bot tokeni yaroqsiz")
+
     row = await _get_or_create_settings(db)
     row.bot_token = payload.bot_token
+    row.bot_username = username
     await db.commit()
-    return BotSettingsOut(bot_token_configured=True, bot_username=env_settings.bot_username or None)
+    return BotSettingsOut(bot_token_configured=True, bot_username=username)
 
 
 @router.get(

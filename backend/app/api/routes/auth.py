@@ -61,9 +61,8 @@ async def create_staff_session(
     db.add(session)
     await db.commit()
 
-    deep_link = (
-        f"https://t.me/{settings.bot_username}?start=staff_{token}" if settings.bot_username else ""
-    )
+    bot_username = await telegram.resolve_bot_username(db)
+    deep_link = f"https://t.me/{bot_username}?start=staff_{token}" if bot_username else ""
     return StaffSessionCreateResponse(
         token=token, role=payload.role, deep_link=deep_link, expires_at=expires_at
     )
@@ -78,10 +77,11 @@ async def get_staff_session_qr(token: str, db: AsyncSession = Depends(get_db)) -
     session = result.scalar_one_or_none()
     if session is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Session not found")
-    if not settings.bot_username:
+    bot_username = await telegram.resolve_bot_username(db)
+    if not bot_username:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Bot username is not configured")
 
-    deep_link = f"https://t.me/{settings.bot_username}?start=staff_{token}"
+    deep_link = f"https://t.me/{bot_username}?start=staff_{token}"
     img = qrcode.make(deep_link)
     buf = io.BytesIO()
     img.save(buf, format="PNG")

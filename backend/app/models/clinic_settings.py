@@ -14,6 +14,7 @@ class ClinicSettings(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     bot_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    bot_username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ai_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
     work_start: Mapped[time | None] = mapped_column(Time, nullable=True)
     work_end: Mapped[time | None] = mapped_column(Time, nullable=True)

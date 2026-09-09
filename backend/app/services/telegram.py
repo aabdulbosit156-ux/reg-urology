@@ -26,6 +26,25 @@ async def resolve_bot_token(db: AsyncSession) -> str | None:
     return settings.bot_token or None
 
 
+async def resolve_bot_username(db: AsyncSession) -> str | None:
+    result = await db.execute(select(ClinicSettings).where(ClinicSettings.id == 1))
+    clinic = result.scalar_one_or_none()
+    if clinic and clinic.bot_username:
+        return clinic.bot_username
+    return settings.bot_username or None
+
+
+async def fetch_bot_username(token: str) -> str | None:
+    """Calls Telegram's getMe so the clinic never has to type the bot's @username by hand."""
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            response = await client.get(f"https://api.telegram.org/bot{token}/getMe")
+            response.raise_for_status()
+        except httpx.HTTPError:
+            return None
+    return response.json().get("result", {}).get("username")
+
+
 async def send_text(db: AsyncSession, telegram_user_id: int | None, text: str) -> None:
     if not telegram_user_id:
         return

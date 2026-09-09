@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, Stars02, UploadCloud02 } from "@untitledui/icons";
+import { useNavigate } from "react-router";
 import { SlideoutMenu } from "@/components/application/slideout-menus/slideout-menu";
 import { Button } from "@/components/base/buttons/button";
-import { Input } from "@/components/base/input/input";
 import { TextArea } from "@/components/base/textarea/textarea";
 import { StatusBadge } from "@/components/patients/status-badge";
 import { STATUS_LABELS, STATUS_ORDER, VALID_TRANSITIONS } from "@/lib/patient-status";
@@ -29,6 +29,7 @@ interface PatientSlideoutProps {
 
 export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientSlideoutProps) => {
     const { me } = useAuth();
+    const navigate = useNavigate();
     const canManageStatus = me?.role !== "analyst";
 
     const [patient, setPatient] = useState<PatientDetail | null>(null);
@@ -37,8 +38,6 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
 
     const [pendingStatus, setPendingStatus] = useState<PatientStatus | null>(null);
     const [note, setNote] = useState("");
-    const [appointmentStart, setAppointmentStart] = useState("");
-    const [appointmentDuration, setAppointmentDuration] = useState("30");
     const [statusError, setStatusError] = useState<string | null>(null);
     const [isSubmittingStatus, setIsSubmittingStatus] = useState(false);
 
@@ -79,23 +78,11 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
     const handleConfirmStatus = async () => {
         if (!pendingStatus || !patient) return;
         setStatusError(null);
-
-        if (pendingStatus === "scheduled" && !appointmentStart) {
-            setStatusError("Qabul sanasi va vaqti kiritilishi shart");
-            return;
-        }
-
         setIsSubmittingStatus(true);
         try {
-            const payload: Record<string, unknown> = { to_status: pendingStatus, note: note || null };
-            if (pendingStatus === "scheduled") {
-                payload.appointment_start_at = new Date(appointmentStart).toISOString();
-                payload.appointment_duration_min = Number(appointmentDuration) || 30;
-            }
-            await api.patch(`/patients/${patient.id}/status`, payload);
+            await api.patch(`/patients/${patient.id}/status`, { to_status: pendingStatus, note: note || null });
             setPendingStatus(null);
             setNote("");
-            setAppointmentStart("");
             await loadPatient();
             onChanged();
         } catch (err) {
@@ -103,6 +90,12 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
         } finally {
             setIsSubmittingStatus(false);
         }
+    };
+
+    const handleScheduleClick = () => {
+        if (!patient) return;
+        onOpenChange(false);
+        navigate(`/calendar?book=${patient.id}&bookName=${encodeURIComponent(patient.full_name)}`);
     };
 
     const handleUpload = async () => {
@@ -221,7 +214,12 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
                                         {!pendingStatus ? (
                                             <div className="flex flex-wrap gap-2">
                                                 {nextStatuses.map((s) => (
-                                                    <Button key={s} size="sm" color="secondary" onClick={() => setPendingStatus(s)}>
+                                                    <Button
+                                                        key={s}
+                                                        size="sm"
+                                                        color="secondary"
+                                                        onClick={() => (s === "scheduled" ? handleScheduleClick() : setPendingStatus(s))}
+                                                    >
                                                         {STATUS_LABELS[s]}
                                                     </Button>
                                                 ))}
@@ -231,24 +229,6 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
                                                 <p className="text-sm text-secondary">
                                                     Yangi holat: <strong className="text-primary">{STATUS_LABELS[pendingStatus]}</strong>
                                                 </p>
-                                                {pendingStatus === "scheduled" && (
-                                                    <>
-                                                        <Input
-                                                            type="datetime-local"
-                                                            label="Qabul sanasi va vaqti"
-                                                            value={appointmentStart}
-                                                            onChange={setAppointmentStart}
-                                                            isRequired
-                                                        />
-                                                        <Input
-                                                            type="number"
-                                                            label="Davomiyligi (daqiqa)"
-                                                            value={appointmentDuration}
-                                                            onChange={setAppointmentDuration}
-                                                            isRequired
-                                                        />
-                                                    </>
-                                                )}
                                                 <TextArea label="Izoh (ixtiyoriy)" value={note} onChange={setNote} rows={2} />
                                                 {statusError && <p className="text-sm text-error-primary">{statusError}</p>}
                                                 <div className="flex justify-end gap-2">
