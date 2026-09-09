@@ -60,29 +60,6 @@ export function slotIndexOf(date: Date, workStart: string, slotMinutes: number):
     return Math.floor(minutesFromStart / slotMinutes);
 }
 
-export function formatTime(iso: string): string {
-    return new Date(iso).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" });
-}
-
-export function formatDayLabel(date: Date): string {
-    return date.toLocaleDateString("uz-UZ", { weekday: "short", day: "2-digit", month: "2-digit" });
-}
-
-export function formatMonthLabel(date: Date): string {
-    return date.toLocaleDateString("uz-UZ", { month: "long", year: "numeric" });
-}
-
-export function formatWeekRangeLabel(weekStart: Date): string {
-    const weekEnd = addDays(weekStart, 6);
-    const startLabel = weekStart.toLocaleDateString("uz-UZ", { day: "2-digit", month: "short" });
-    const endLabel = weekEnd.toLocaleDateString("uz-UZ", { day: "2-digit", month: "short", year: "numeric" });
-    return `${startLabel} — ${endLabel}`;
-}
-
-export function formatDateLabel(date: Date): string {
-    return date.toLocaleDateString("uz-UZ", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
-}
-
 /** Combine a slot's "HH:MM" with another date's Y-M-D, producing a new local Date. */
 export function withTimeOfSlot(date: Date, slot: string): Date {
     const [h, m] = slot.split(":").map(Number);

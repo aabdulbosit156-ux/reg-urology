@@ -7,6 +7,7 @@ import { Select } from "@/components/base/select/select";
 import { useClipboard } from "@/hooks/use-clipboard";
 import { ApiError, api, fetchBlob } from "@/lib/api-client";
 import { ROLE_LABELS } from "@/lib/staff-role";
+import { formatTimeUz } from "@/lib/uz-date";
 import type { InvitableRole, StaffSessionCreateResponse } from "@/types/auth";
 
 const INVITABLE_ROLES: { id: InvitableRole; label: string }[] = [
@@ -73,9 +74,7 @@ export const InviteStaffModal = ({ isOpen, onOpenChange }: InviteStaffModalProps
         };
     }, [session]);
 
-    const expiresLabel = session
-        ? new Date(session.expires_at).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" })
-        : null;
+    const expiresLabel = session ? formatTimeUz(session.expires_at) : null;
 
     return (
         <ModalOverlay isOpen={isOpen} onOpenChange={(open) => !open && handleClose()}>

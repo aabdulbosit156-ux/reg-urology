@@ -12,9 +12,6 @@ import { ApiError, api } from "@/lib/api-client";
 import {
     addDays,
     addMonths,
-    formatDateLabel,
-    formatMonthLabel,
-    formatWeekRangeLabel,
     generateTimeSlots,
     monthGridRange,
     slotIndexOf,
@@ -22,6 +19,7 @@ import {
     startOfWeek,
     withTimeOfSlot,
 } from "@/lib/calendar";
+import { formatFullDateUz, formatMonthYearUz, formatWeekRangeUz } from "@/lib/uz-date";
 import type { CalendarAppointment } from "@/types/appointment";
 import type { ScheduleSettings } from "@/types/settings";
 
@@ -200,10 +198,10 @@ export const CalendarPage = () => {
 
     const headerLabel =
         view === "day"
-            ? formatDateLabel(anchor)
+            ? formatFullDateUz(anchor)
             : view === "week"
-              ? formatWeekRangeLabel(startOfWeek(anchor))
-              : formatMonthLabel(anchor);
+              ? formatWeekRangeUz(startOfWeek(anchor))
+              : formatMonthYearUz(anchor);
 
     const bookingMode = bookPatientId
         ? { patientName: bookPatientName ?? "Bemor", onPickSlot: handlePickSlot }
@@ -266,6 +264,10 @@ export const CalendarPage = () => {
                             appointments={appointments}
                             onOpenPatient={setSelectedPatientId}
                             onReschedule={handleReschedule}
+                            onSelectDay={(day) => {
+                                setAnchor(day);
+                                setView("day");
+                            }}
                         />
                     )}
                     {view === "month" && !bookPatientId && (

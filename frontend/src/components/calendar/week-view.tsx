@@ -1,6 +1,7 @@
 import type { DragEvent } from "react";
 import { AppointmentCard } from "@/components/calendar/appointment-card";
-import { addDays, formatDayLabel, isSameDay } from "@/lib/calendar";
+import { addDays, isSameDay } from "@/lib/calendar";
+import { formatDayShortUz } from "@/lib/uz-date";
 import type { CalendarAppointment } from "@/types/appointment";
 import { cx } from "@/utils/cx";
 
@@ -9,9 +10,10 @@ interface WeekViewProps {
     appointments: CalendarAppointment[];
     onOpenPatient: (patientId: string) => void;
     onReschedule: (appointmentId: string, newStart: Date) => void;
+    onSelectDay: (day: Date) => void;
 }
 
-export const WeekView = ({ weekStart, appointments, onOpenPatient, onReschedule }: WeekViewProps) => {
+export const WeekView = ({ weekStart, appointments, onOpenPatient, onReschedule, onSelectDay }: WeekViewProps) => {
     const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
     const today = new Date();
 
@@ -42,7 +44,13 @@ export const WeekView = ({ weekStart, appointments, onOpenPatient, onReschedule 
                             isSameDay(day, today) ? "bg-brand-primary_alt" : "bg-primary",
                         )}
                     >
-                        <p className="text-xs font-semibold text-tertiary capitalize">{formatDayLabel(day)}</p>
+                        <button
+                            type="button"
+                            onClick={() => onSelectDay(day)}
+                            className="self-start rounded px-1 text-xs font-semibold text-tertiary capitalize outline-focus-ring hover:text-secondary hover:underline"
+                        >
+                            {formatDayShortUz(day)}
+                        </button>
                         {dayAppointments.length === 0 && <p className="text-xs text-quaternary">—</p>}
                         {dayAppointments.map((a) => (
                             <AppointmentCard

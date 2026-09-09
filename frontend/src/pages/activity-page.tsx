@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Table } from "@/components/application/table/table";
 import { ApiError, api } from "@/lib/api-client";
+import { formatDateTimeUz as formatDateTime } from "@/lib/uz-date";
 import type { ActivityLogListResponse, ActivityLogOut } from "@/types/activity";
 
 interface Column {
@@ -14,16 +15,6 @@ const COLUMNS: Column[] = [
     { id: "action", label: "Amal" },
     { id: "entity", label: "Ob'ekt" },
 ];
-
-function formatDateTime(iso: string): string {
-    return new Date(iso).toLocaleString("uz-UZ", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
-}
 
 const PAGE_SIZE = 50;
 

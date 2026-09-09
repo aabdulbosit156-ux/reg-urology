@@ -4,6 +4,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } f
 import { ChartTooltipContent } from "@/components/application/charts/charts-base";
 import { useLiveUpdates } from "@/hooks/use-live-updates";
 import { ApiError, api } from "@/lib/api-client";
+import { formatDayMonthUz as formatDay } from "@/lib/uz-date";
 import { useAuth } from "@/providers/auth-provider";
 import type { DashboardOut } from "@/types/dashboard";
 
@@ -24,10 +25,6 @@ const StatCard = ({ label, value, icon: Icon }: StatCardProps) => (
         </div>
     </div>
 );
-
-function formatDay(iso: string): string {
-    return new Date(iso).toLocaleDateString("uz-UZ", { day: "2-digit", month: "2-digit" });
-}
 
 export const DashboardPage = () => {
     const { me } = useAuth();

@@ -2,6 +2,7 @@ import { Phone, Send03, Trash01 } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { Table } from "@/components/application/table/table";
 import { StatusBadge } from "@/components/patients/status-badge";
+import { formatDateUz as formatDate } from "@/lib/uz-date";
 import type { Patient } from "@/types/patient";
 
 interface Column {
@@ -16,10 +17,6 @@ const COLUMNS: Column[] = [
     { id: "created", label: "Sana" },
     { id: "actions", label: "" },
 ];
-
-function formatDate(iso: string): string {
-    return new Date(iso).toLocaleDateString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
 
 interface PatientTableProps {
     patients: Patient[];

@@ -1,4 +1,5 @@
-import { slotIndexOf, withTimeOfSlot, generateTimeSlots, formatTime } from "@/lib/calendar";
+import { generateTimeSlots, slotIndexOf, withTimeOfSlot } from "@/lib/calendar";
+import { formatTimeUz } from "@/lib/uz-date";
 import type { CalendarAppointment } from "@/types/appointment";
 import type { ScheduleSettings } from "@/types/settings";
 
@@ -80,7 +81,7 @@ export const DayView = ({ date, appointments, schedule, onOpenPatient, booking }
                             style={{ top: `${startIdx * ROW_HEIGHT_REM}rem`, height: `${span * ROW_HEIGHT_REM - 0.25}rem` }}
                         >
                             <p className="truncate text-xs font-semibold text-brand-secondary">
-                                {formatTime(a.start_at)} · {a.patient.full_name}
+                                {formatTimeUz(a.start_at)} · {a.patient.full_name}
                             </p>
                         </button>
                     );

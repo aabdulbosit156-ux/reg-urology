@@ -7,19 +7,10 @@ import { TextArea } from "@/components/base/textarea/textarea";
 import { StatusBadge } from "@/components/patients/status-badge";
 import { STATUS_LABELS, STATUS_ORDER, VALID_TRANSITIONS } from "@/lib/patient-status";
 import { ApiError, api, fetchBlob } from "@/lib/api-client";
+import { formatDateTimeUz as formatDateTime } from "@/lib/uz-date";
 import { useAuth } from "@/providers/auth-provider";
 import { cx } from "@/utils/cx";
 import type { PatientDetail, PatientStatus } from "@/types/patient";
-
-function formatDateTime(iso: string): string {
-    return new Date(iso).toLocaleString("uz-UZ", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
-}
 
 interface PatientSlideoutProps {
     patientId: string | null;
