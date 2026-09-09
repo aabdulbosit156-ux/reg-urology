@@ -1,0 +1,18 @@
+{
+    "name": "RegUrology",
+    "short_name": "RegUrology",
+    "description": "RegUrology — urolog shifokor qabulxonasi uchun bemorlarni ro'yxatga olish va navbat boshqaruv tizimi.",
+    "id": "/",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#7f56d9",
+    "lang": "uz",
+    "categories": ["medical", "health", "business"],
+    "icons": [
+        { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+        { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+        { "src": "/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    ]
+}

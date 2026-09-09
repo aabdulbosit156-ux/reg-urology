@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="description" content="RegUrology — urolog shifokor qabulxonasi uchun bemorlarni ro'yxatga olish va navbat boshqaruv tizimi." />
+        <meta name="theme-color" content="#7f56d9" />
+
+        <!-- Favicon -->
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+        <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+        <link rel="shortcut icon" href="/favicon.ico" />
+
+        <!-- PWA -->
+        <link rel="manifest" href="/manifest.webmanifest" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-title" content="RegUrology" />
+
+        <!-- Social preview (Open Graph / Twitter). og:image/twitter:image are root-relative for now —
+             switch to a full absolute URL (https://domain/og-image.png) once the app has a real domain,
+             since some crawlers (e.g. Twitter's) require an absolute URL. -->
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="RegUrology" />
+        <meta property="og:locale" content="uz_UZ" />
+        <meta property="og:title" content="RegUrology" />
+        <meta property="og:description" content="Urolog shifokor qabulxonasi uchun bemorlarni ro'yxatga olish va navbat boshqaruv tizimi." />
+        <meta property="og:image" content="/og-image.png" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="RegUrology" />
+        <meta name="twitter:description" content="Urolog shifokor qabulxonasi uchun bemorlarni ro'yxatga olish va navbat boshqaruv tizimi." />
+        <meta name="twitter:image" content="/og-image.png" />
+
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&display=swap" rel="stylesheet" />
+
+        <title>RegUrology — bemorlarni qabul qilish tizimi</title>
+    </head>
+
+    <body class="size-full bg-primary antialiased">
+        <div id="root"></div>
+        <script src="https://telegram.org/js/telegram-web-app.js"></script>
+        <script type="module" src="/src/main.tsx"></script>
+        <script>
+            // On page load or when changing themes, best to add inline in `head` to avoid FOUC
+            if (localStorage.theme === "dark" || (!("theme" in localStorage) && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+                document.documentElement.classList.add("dark-mode");
+            } else {
+                document.documentElement.classList.remove("dark-mode");
+            }
+        </script>
+    </body>
+</html>
