@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Plus } from "@untitledui/icons";
+import { Plus, Trash01, UserCheck01 } from "@untitledui/icons";
+import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/modal";
 import { Table } from "@/components/application/table/table";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
@@ -16,7 +17,7 @@ interface Column {
     label: string;
 }
 
-const COLUMNS: Column[] = [
+const BASE_COLUMNS: Column[] = [
     { id: "name", label: "Xodim" },
     { id: "role", label: "Rol" },
     { id: "phone", label: "Telefon" },
@@ -26,12 +27,17 @@ const COLUMNS: Column[] = [
 
 export const StaffPage = () => {
     const { me } = useAuth();
-    const canInvite = me?.role === "dev" || me?.role === "director";
+    const canManageAccess = me?.role === "dev" || me?.role === "director";
 
     const [staff, setStaff] = useState<StaffStatsOut[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isInviteOpen, setIsInviteOpen] = useState(false);
+
+    const [deactivateTarget, setDeactivateTarget] = useState<StaffStatsOut | null>(null);
+    const [isUpdating, setIsUpdating] = useState(false);
+
+    const columns = canManageAccess ? [...BASE_COLUMNS, { id: "actions", label: "" }] : BASE_COLUMNS;
 
     const loadStaff = useCallback(async () => {
         try {
@@ -50,6 +56,20 @@ export const StaffPage = () => {
 
     useLiveUpdates(loadStaff);
 
+    const setActive = async (person: StaffStatsOut, isActive: boolean) => {
+        setIsUpdating(true);
+        setError(null);
+        try {
+            await api.patch(`/staff/${person.id}`, { is_active: isActive });
+            setDeactivateTarget(null);
+            await loadStaff();
+        } catch (err) {
+            setError(err instanceof ApiError ? err.message : "O'zgartirishda xatolik");
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
     return (
         <div className="flex flex-col gap-6 px-4 py-6 pb-24 lg:px-0 lg:py-0">
             <PageHeader>
@@ -57,7 +77,7 @@ export const StaffPage = () => {
                     <h1 className="text-xl font-semibold text-primary">
                         Xodimlar <span className="text-tertiary">{staff.length}</span>
                     </h1>
-                    {canInvite && (
+                    {canManageAccess && (
                         <Button iconLeading={Plus} onClick={() => setIsInviteOpen(true)}>
                             Xodim qo'shish
                         </Button>
@@ -71,7 +91,7 @@ export const StaffPage = () => {
                 <p className="text-sm text-tertiary">Yuklanmoqda...</p>
             ) : (
                 <Table aria-label="Xodimlar ro'yxati">
-                    <Table.Header columns={COLUMNS}>{(column) => <Table.Head id={column.id}>{column.label}</Table.Head>}</Table.Header>
+                    <Table.Header columns={columns}>{(column) => <Table.Head id={column.id}>{column.label}</Table.Head>}</Table.Header>
                     <Table.Body
                         items={staff}
                         renderEmptyState={() => (
@@ -79,7 +99,7 @@ export const StaffPage = () => {
                         )}
                     >
                         {(person) => (
-                            <Table.Row id={person.id} columns={COLUMNS}>
+                            <Table.Row id={person.id} columns={columns}>
                                 {(column) => {
                                     switch (column.id) {
                                         case "name":
@@ -108,6 +128,31 @@ export const StaffPage = () => {
                                             );
                                         case "received":
                                             return <Table.Cell>{person.patients_received}</Table.Cell>;
+                                        case "actions":
+                                            return (
+                                                <Table.Cell>
+                                                    <div className="flex justify-end">
+                                                        {person.is_active ? (
+                                                            <Button
+                                                                size="sm"
+                                                                color="tertiary-destructive"
+                                                                iconLeading={Trash01}
+                                                                aria-label="Xodimlikdan chiqarish"
+                                                                onClick={() => setDeactivateTarget(person)}
+                                                            />
+                                                        ) : (
+                                                            <Button
+                                                                size="sm"
+                                                                color="tertiary"
+                                                                iconLeading={UserCheck01}
+                                                                aria-label="Faollashtirish"
+                                                                isLoading={isUpdating}
+                                                                onClick={() => setActive(person, true)}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                </Table.Cell>
+                                            );
                                         default:
                                             return <Table.Cell>—</Table.Cell>;
                                     }
@@ -118,7 +163,34 @@ export const StaffPage = () => {
                 </Table>
             )}
 
-            {canInvite && <InviteStaffModal isOpen={isInviteOpen} onOpenChange={setIsInviteOpen} />}
+            {canManageAccess && <InviteStaffModal isOpen={isInviteOpen} onOpenChange={setIsInviteOpen} />}
+
+            <ModalOverlay isOpen={!!deactivateTarget} onOpenChange={(open) => !open && setDeactivateTarget(null)}>
+                <Modal>
+                    <Dialog>
+                        <div className="w-full max-w-sm rounded-xl bg-primary p-6 shadow-xl">
+                            <h2 className="text-lg font-semibold text-primary">Xodimlikdan chiqarish</h2>
+                            <p className="mt-2 text-sm text-tertiary">
+                                <strong className="text-primary">{deactivateTarget?.full_name}</strong> endi tizimga kira olmaydi va
+                                xabarnomalar olmaydi. Uning o'tmishdagi ma'lumotlari (bemorlar, analizlar, tarix) saqlanib qoladi.
+                                Keyinchalik qayta faollashtirish mumkin.
+                            </p>
+                            <div className="mt-6 flex justify-end gap-3">
+                                <Button color="secondary" onClick={() => setDeactivateTarget(null)}>
+                                    Bekor qilish
+                                </Button>
+                                <Button
+                                    color="primary-destructive"
+                                    isLoading={isUpdating}
+                                    onClick={() => deactivateTarget && setActive(deactivateTarget, false)}
+                                >
+                                    Chiqarish
+                                </Button>
+                            </div>
+                        </div>
+                    </Dialog>
+                </Modal>
+            </ModalOverlay>
         </div>
     );
 };

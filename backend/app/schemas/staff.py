@@ -14,3 +14,7 @@ class StaffStatsOut(BaseModel):
     is_active: bool
     patients_received: int
     created_at: datetime
+
+
+class StaffUpdateRequest(BaseModel):
+    is_active: bool
