@@ -47,7 +47,11 @@ async def list_appointments(
     result = await db.execute(
         select(Appointment, Patient)
         .join(Patient, Appointment.patient_id == Patient.id)
-        .where(Appointment.start_at >= start, Appointment.start_at < end)
+        .where(
+            Appointment.start_at >= start,
+            Appointment.start_at < end,
+            Appointment.status == AppointmentStatus.scheduled,
+        )
         .order_by(Appointment.start_at)
     )
     return [_to_calendar_out(appointment, patient) for appointment, patient in result.all()]
