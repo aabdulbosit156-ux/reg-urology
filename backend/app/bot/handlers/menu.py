@@ -8,6 +8,7 @@ from aiogram.types import CallbackQuery, Message
 from sqlalchemy import select
 
 from app.bot.keyboards import (
+    ANALYZE_BTN,
     CLINIC_BTN,
     DOCUMENTS_BTN,
     EXTRA_UPLOAD_CALLBACK,
@@ -15,7 +16,7 @@ from app.bot.keyboards import (
     ai_analyze_kb,
     extra_upload_kb,
 )
-from app.bot.states import ExtraUpload
+from app.bot.states import AnalyzeNow, ExtraUpload
 from app.database import AsyncSessionLocal
 from app.models.analysis import Analysis
 from app.models.appointment import Appointment, AppointmentStatus
@@ -138,6 +139,18 @@ async def handle_extra_upload_request(callback: CallbackQuery, state: FSMContext
     await state.set_state(ExtraUpload.waiting)
     await callback.answer()
     await callback.message.answer("📎 Hujjat yoki rasmni yuboring (bir nechta bo'lsa ketma-ket yuboring).")
+
+
+@router.message(F.text == ANALYZE_BTN)
+async def handle_analyze_button(message: Message, state: FSMContext) -> None:
+    patient = await _get_patient(message.from_user.id)
+    if patient is None:
+        await message.answer("Siz hali ro'yxatdan o'tmagansiz. /start buyrug'ini yuboring.")
+        return
+    await state.set_state(AnalyzeNow.waiting)
+    await message.answer(
+        "✨ Tahlil qilinadigan analiz hujjati yoki rasmini yuboring — men uni darhol tahlil qilaman."
+    )
 
 
 @router.message(F.text == CLINIC_BTN)

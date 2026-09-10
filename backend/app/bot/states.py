@@ -9,3 +9,7 @@ class Registration(StatesGroup):
 
 class ExtraUpload(StatesGroup):
     waiting = State()
+
+
+class AnalyzeNow(StatesGroup):
+    waiting = State()

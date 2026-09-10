@@ -13,6 +13,7 @@ from app.config import get_settings
 STATUS_BTN = "📊 Holatim"
 DOCUMENTS_BTN = "📁 Hujjatlar"
 CLINIC_BTN = "🏥 Klinika haqida"
+ANALYZE_BTN = "✨ Analizni tahlil qilish"
 SKIP_GOAL_CALLBACK = "skip_goal"
 AI_ANALYZE_CALLBACK_PREFIX = "ai_analyze:"
 EXTRA_UPLOAD_CALLBACK = "extra_upload"
@@ -29,6 +30,7 @@ def extra_upload_kb() -> InlineKeyboardMarkup:
 def main_menu_kb() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[
+            [KeyboardButton(text=ANALYZE_BTN)],
             [KeyboardButton(text=STATUS_BTN)],
             [KeyboardButton(text=DOCUMENTS_BTN), KeyboardButton(text=CLINIC_BTN)],
         ],

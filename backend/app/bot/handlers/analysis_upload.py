@@ -1,3 +1,4 @@
+import html
 import mimetypes
 import os
 import uuid
@@ -8,11 +9,13 @@ from aiogram.types import FSInputFile, Message
 from sqlalchemy import select
 
 from app.bot.keyboards import ai_analyze_kb, main_menu_kb
-from app.bot.states import ExtraUpload
+from app.bot.states import AnalyzeNow, ExtraUpload
 from app.config import get_settings
 from app.database import AsyncSessionLocal
 from app.models.analysis import Analysis, AnalysisUploadedBy
 from app.models.patient import Patient, PatientStatus
+from app.services import ai_analysis
+from app.services.ai_analysis import MAX_AI_ANALYSES_PER_PATIENT, count_ai_analyses
 from app.services.telegram import notify_web_of_change
 
 router = Router(name="analysis_upload")
@@ -97,6 +100,55 @@ async def handle_extra_upload(message: Message, state: FSMContext) -> None:
 async def handle_extra_upload_other(message: Message, state: FSMContext) -> None:
     await message.answer(
         "📎 Iltimos, hujjat yoki rasm yuboring. Yakunlash uchun menyudagi tugmalardan foydalaning.",
+        reply_markup=main_menu_kb(),
+    )
+    await state.clear()
+
+
+# Started from the "✨ Analizni tahlil qilish" menu button — stores the file into the patient's
+# documents and runs AI analysis immediately, saving the report to the DB.
+@router.message(AnalyzeNow.waiting, F.photo | F.document)
+async def handle_analyze_now(message: Message, state: FSMContext) -> None:
+    patient = await _get_patient(message.from_user.id)
+    if patient is None:
+        await state.clear()
+        return
+    await state.clear()
+
+    analysis = await _store_uploaded_file(message, patient)
+
+    async with AsyncSessionLocal() as db:
+        analyzed = await count_ai_analyses(db, patient.id)
+        if analyzed >= MAX_AI_ANALYSES_PER_PATIENT:
+            await message.answer(
+                f"✅ Hujjat saqlandi.\n⚠️ AI tahlil limiti tugadi (maksimal {MAX_AI_ANALYSES_PER_PATIENT} ta). "
+                "Qo'shimcha maslahat uchun klinika bilan bog'laning.",
+                reply_markup=main_menu_kb(),
+            )
+            return
+
+        result = await db.execute(select(Analysis).where(Analysis.id == analysis.id))
+        analysis_row = result.scalar_one()
+        await message.answer("⏳ Hujjat qabul qilindi, tahlil qilinmoqda...")
+        try:
+            report = await ai_analysis.analyze_lab_report(db, analysis_row)
+        except ai_analysis.AIAnalysisError as exc:
+            await message.answer(
+                f"✅ Hujjat saqlandi.\n⚠️ Tahlil qilishda xatolik: {exc}",
+                reply_markup=main_menu_kb(),
+            )
+            return
+        analysis_row.ai_report = report
+        await db.commit()
+
+    await notify_web_of_change()
+    await message.answer(f"✨ <b>AI tahlili:</b>\n\n{html.escape(report)}", reply_markup=main_menu_kb())
+
+
+@router.message(AnalyzeNow.waiting)
+async def handle_analyze_now_other(message: Message, state: FSMContext) -> None:
+    await message.answer(
+        "✨ Iltimos, tahlil qilinadigan hujjat yoki rasm yuboring.",
         reply_markup=main_menu_kb(),
     )
     await state.clear()

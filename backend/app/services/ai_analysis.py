@@ -12,7 +12,7 @@ import base64
 
 import openai
 import pymupdf
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.analysis import Analysis
@@ -21,6 +21,7 @@ from app.services import telegram
 
 MODEL = "gpt-4o"
 MAX_PDF_PAGES = 5
+MAX_AI_ANALYSES_PER_PATIENT = 3
 
 SYSTEM_PROMPT = """Siz — urologik klinika uchun laborator analiz natijalarini sharhlovchi yordamchisiz. \
 Sizga bemorning analiz hujjati rasm(lar) shaklida beriladi.
@@ -49,6 +50,15 @@ async def resolve_ai_token(db: AsyncSession) -> str | None:
     result = await db.execute(select(ClinicSettings).where(ClinicSettings.id == 1))
     clinic = result.scalar_one_or_none()
     return clinic.ai_token if clinic and clinic.ai_token else None
+
+
+async def count_ai_analyses(db: AsyncSession, patient_id) -> int:
+    """How many of the patient's documents already have an AI report (for the per-patient cap)."""
+    return await db.scalar(
+        select(func.count())
+        .select_from(Analysis)
+        .where(Analysis.patient_id == patient_id, Analysis.ai_report.is_not(None))
+    )
 
 
 def _pdf_to_png_pages(pdf_bytes: bytes, max_pages: int = MAX_PDF_PAGES) -> list[bytes]:
