@@ -56,13 +56,14 @@ class StaffWebAppLoginRequest(BaseModel):
     init_data: str
 
 
-class StaffTelegramLoginRequest(BaseModel):
-    """Telegram Login Widget payload (website login on a normal browser)."""
+class LoginTokenStartResponse(BaseModel):
+    token: str
+    deep_link: str
+    expires_at: datetime
 
-    id: int
-    auth_date: int
-    hash: str
-    first_name: str | None = None
-    last_name: str | None = None
-    username: str | None = None
-    photo_url: str | None = None
+
+class LoginTokenStatusResponse(BaseModel):
+    status: str  # "pending" | "confirmed" | "expired"
+    access_token: str | None = None
+    role: StaffRole | None = None
+    expires_in: int | None = None

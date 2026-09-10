@@ -2,6 +2,7 @@ from app.models.activity_log import ActivityLog
 from app.models.analysis import Analysis, AnalysisUploadedBy
 from app.models.appointment import Appointment, AppointmentStatus
 from app.models.clinic_settings import ClinicSettings
+from app.models.login_token import LoginToken
 from app.models.patient import Patient, PatientSource, PatientStatus
 from app.models.staff import Staff, StaffRole
 from app.models.staff_session import StaffSession, StaffSessionStatus
@@ -14,6 +15,7 @@ __all__ = [
     "Appointment",
     "AppointmentStatus",
     "ClinicSettings",
+    "LoginToken",
     "Patient",
     "PatientSource",
     "PatientStatus",

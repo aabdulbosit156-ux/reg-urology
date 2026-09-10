@@ -16,21 +16,25 @@ from app.api.deps import (
 )
 from app.config import get_settings
 from app.core.security import create_access_token, generate_session_token, verify_password
-from app.core.telegram_auth import InvalidInitData, verify_login_widget, verify_webapp_init_data
+from app.core.telegram_auth import InvalidInitData, verify_webapp_init_data
+from app.models.login_token import LoginToken
 from app.models.staff import Staff, StaffRole
 from app.models.staff_session import StaffSession, StaffSessionStatus
 from app.schemas.auth import (
     DevLoginRequest,
+    LoginTokenStartResponse,
+    LoginTokenStatusResponse,
     MeResponse,
     StaffSessionConfirmRequest,
     StaffSessionConfirmResponse,
     StaffSessionCreateRequest,
     StaffSessionCreateResponse,
-    StaffTelegramLoginRequest,
     StaffWebAppLoginRequest,
     TokenResponse,
 )
 from app.services import telegram
+
+LOGIN_TOKEN_TTL_MINUTES = 5
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
@@ -155,29 +159,98 @@ async def staff_webapp_login(
     )
 
 
-@router.post("/staff/telegram-login", response_model=TokenResponse)
-async def staff_telegram_login(
-    payload: StaffTelegramLoginRequest, db: AsyncSession = Depends(get_db)
-) -> TokenResponse:
-    """Website login via the Telegram Login Widget (normal browser) — for director/admin/analyst."""
-    bot_token = await telegram.resolve_bot_token(db)
-    if not bot_token:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Bot tokeni sozlanmagan")
+@router.post("/staff/login/start", response_model=LoginTokenStartResponse)
+async def staff_login_start(db: AsyncSession = Depends(get_db)) -> LoginTokenStartResponse:
+    """Website login step 1: mint a token; the staff member confirms it by opening the bot."""
+    bot_username = await telegram.resolve_bot_username(db)
+    if not bot_username:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Bot username sozlanmagan")
 
-    try:
-        verify_login_widget(payload.model_dump(), bot_token)
-    except InvalidInitData as exc:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
+    token = generate_session_token()
+    expires_at = datetime.now(UTC) + timedelta(minutes=LOGIN_TOKEN_TTL_MINUTES)
+    db.add(LoginToken(token=token, status="pending", expires_at=expires_at))
+    await db.commit()
 
-    result = await db.execute(select(Staff).where(Staff.telegram_user_id == payload.id))
-    staff = result.scalar_one_or_none()
+    return LoginTokenStartResponse(
+        token=token,
+        deep_link=f"https://t.me/{bot_username}?start=login_{token}",
+        expires_at=expires_at,
+    )
+
+
+@router.get("/staff/login/{token}", response_model=LoginTokenStatusResponse)
+async def staff_login_status(token: str, db: AsyncSession = Depends(get_db)) -> LoginTokenStatusResponse:
+    """Website login step 2: poll until the bot marks the token confirmed, then hand back a JWT."""
+    result = await db.execute(select(LoginToken).where(LoginToken.token == token))
+    login_token = result.scalar_one_or_none()
+    if login_token is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Token topilmadi")
+
+    if login_token.status == "consumed":
+        return LoginTokenStatusResponse(status="expired")
+    if login_token.expires_at < datetime.now(UTC):
+        return LoginTokenStatusResponse(status="expired")
+    if login_token.status != "confirmed" or login_token.staff_id is None:
+        return LoginTokenStatusResponse(status="pending")
+
+    staff_result = await db.execute(select(Staff).where(Staff.id == login_token.staff_id))
+    staff = staff_result.scalar_one_or_none()
     if staff is None or not staff.is_active:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Siz xodim sifatida ro'yxatdan o'tmagansiz")
+        return LoginTokenStatusResponse(status="expired")
+
+    # One-time exchange: mark consumed so the token can't be reused.
+    login_token.status = "consumed"
+    await db.commit()
 
     access_token = create_access_token(subject=str(staff.id), role=staff.role)
-    return TokenResponse(
-        access_token=access_token, role=staff.role, expires_in=settings.jwt_expire_minutes * 60
+    return LoginTokenStatusResponse(
+        status="confirmed",
+        access_token=access_token,
+        role=staff.role,
+        expires_in=settings.jwt_expire_minutes * 60,
     )
+
+
+@router.get("/staff/login/{token}/qr")
+async def staff_login_qr(token: str, db: AsyncSession = Depends(get_db)) -> Response:
+    result = await db.execute(select(LoginToken).where(LoginToken.token == token))
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Token topilmadi")
+    bot_username = await telegram.resolve_bot_username(db)
+    if not bot_username:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Bot username sozlanmagan")
+
+    img = qrcode.make(f"https://t.me/{bot_username}?start=login_{token}")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return Response(content=buf.getvalue(), media_type="image/png")
+
+
+@router.post(
+    "/staff/login/{token}/confirm",
+    response_model=StaffSessionConfirmResponse,
+    dependencies=[Depends(require_bot_secret)],
+)
+async def staff_login_confirm(
+    token: str, telegram_user_id: int, db: AsyncSession = Depends(get_db)
+) -> StaffSessionConfirmResponse:
+    """Called by the bot when a staff member opens the login deep link."""
+    result = await db.execute(select(LoginToken).where(LoginToken.token == token))
+    login_token = result.scalar_one_or_none()
+    if login_token is None or login_token.status != "pending":
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Token yaroqsiz yoki ishlatilgan")
+    if login_token.expires_at < datetime.now(UTC):
+        raise HTTPException(status.HTTP_410_GONE, "Token muddati o'tgan")
+
+    staff_result = await db.execute(select(Staff).where(Staff.telegram_user_id == telegram_user_id))
+    staff = staff_result.scalar_one_or_none()
+    if staff is None or not staff.is_active:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Siz xodim emassiz")
+
+    login_token.status = "confirmed"
+    login_token.staff_id = staff.id
+    await db.commit()
+    return StaffSessionConfirmResponse(staff_id=staff.id, role=staff.role, full_name=staff.full_name)
 
 
 @router.get("/me", response_model=MeResponse)

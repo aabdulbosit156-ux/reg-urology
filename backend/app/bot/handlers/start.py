@@ -50,6 +50,10 @@ async def handle_start(message: Message, command: CommandObject, state: FSMConte
         await _handle_staff_onboarding(message, payload.removeprefix("staff_"))
         return
 
+    if payload and payload.startswith("login_"):
+        await _handle_login_confirm(message, payload.removeprefix("login_"))
+        return
+
     if payload and payload.startswith("invite_"):
         linked = await _handle_invite(message, payload.removeprefix("invite_"))
         if linked:
@@ -105,6 +109,31 @@ async def _handle_staff_onboarding(message: Message, token: str) -> None:
     role = StaffRole(response.json()["role"])
     await message.answer(
         f"✅ Xush kelibsiz! Siz {ROLE_LABELS[role]} sifatida ro'yxatdan o'tdingiz.",
+        reply_markup=staff_menu_kb() or ReplyKeyboardRemove(),
+    )
+
+
+async def _handle_login_confirm(message: Message, token: str) -> None:
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            response = await client.post(
+                f"{settings.api_base_url}/api/auth/staff/login/{token}/confirm",
+                params={"telegram_user_id": message.from_user.id},
+                headers={"X-Bot-Secret": settings.bot_internal_secret},
+            )
+        except httpx.HTTPError:
+            await message.answer("Server bilan bog'lanib bo'lmadi. Birozdan so'ng qayta urinib ko'ring.")
+            return
+
+    if response.status_code == 403:
+        await message.answer("⛔️ Siz xodim sifatida ro'yxatdan o'tmagansiz.")
+        return
+    if response.status_code != 200:
+        await message.answer("Kirish havolasi yaroqsiz yoki muddati o'tgan. Saytdan qayta urinib ko'ring.")
+        return
+
+    await message.answer(
+        "✅ Kirish tasdiqlandi! Saytga qayting — panel avtomatik ochiladi.",
         reply_markup=staff_menu_kb() or ReplyKeyboardRemove(),
     )
 

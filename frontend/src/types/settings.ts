@@ -4,6 +4,19 @@ export interface ScheduleSettings {
     slot_minutes: number;
 }
 
+export interface LoginTokenStart {
+    token: string;
+    deep_link: string;
+    expires_at: string;
+}
+
+export interface LoginTokenStatus {
+    status: "pending" | "confirmed" | "expired";
+    access_token: string | null;
+    role: string | null;
+    expires_in: number | null;
+}
+
 export interface AISettings {
     ai_token_configured: boolean;
 }
