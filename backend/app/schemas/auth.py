@@ -54,3 +54,15 @@ class MeResponse(BaseModel):
 
 class StaffWebAppLoginRequest(BaseModel):
     init_data: str
+
+
+class StaffTelegramLoginRequest(BaseModel):
+    """Telegram Login Widget payload (website login on a normal browser)."""
+
+    id: int
+    auth_date: int
+    hash: str
+    first_name: str | None = None
+    last_name: str | None = None
+    username: str | None = None
+    photo_url: str | None = None

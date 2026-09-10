@@ -8,7 +8,7 @@ from app.bot.states import Registration
 from app.database import AsyncSessionLocal
 from app.models.patient import Patient, PatientSource, PatientStatus
 from app.models.status_history import StatusHistory
-from app.services.telegram import notify_web_of_change
+from app.services.telegram import notify_staff_new_patient, notify_web_of_change
 
 router = Router(name="registration")
 
@@ -85,7 +85,8 @@ async def _finish_registration(
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(Patient).where(Patient.telegram_user_id == telegram_user_id))
         patient = result.scalar_one_or_none()
-        if patient is None:
+        is_new = patient is None
+        if is_new:
             patient = Patient(
                 full_name=data["full_name"],
                 phone=data["phone"],
@@ -110,6 +111,8 @@ async def _finish_registration(
             patient.phone = data["phone"]
             patient.consultation_goal = goal
         await db.commit()
+        if is_new:
+            await notify_staff_new_patient(db, data["full_name"], data["phone"], "bot")
 
     await notify_web_of_change()
     await state.clear()

@@ -14,9 +14,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models.clinic_settings import ClinicSettings
+from app.models.staff import Staff, StaffRole
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+# Roles that get a heads-up when a new patient/lead appears.
+NEW_PATIENT_NOTIFY_ROLES = (StaffRole.director, StaffRole.admin)
 
 
 async def resolve_bot_token(db: AsyncSession) -> str | None:
@@ -79,6 +83,21 @@ def ai_analyze_markup(analysis_id: uuid.UUID) -> dict:
             [{"text": "✨ Analizni tahlil qilish", "callback_data": f"ai_analyze:{analysis_id}"}]
         ]
     }
+
+
+async def notify_staff_new_patient(db: AsyncSession, full_name: str, phone: str, source: str) -> None:
+    """Pings director/admin staff (who are on Telegram) about a newly registered patient."""
+    result = await db.execute(
+        select(Staff).where(
+            Staff.role.in_(NEW_PATIENT_NOTIFY_ROLES),
+            Staff.is_active.is_(True),
+            Staff.telegram_user_id.is_not(None),
+        )
+    )
+    source_label = "Bot orqali" if source == "bot" else "Qo'lda qo'shildi"
+    text = f"🆕 Yangi bemor!\n👤 {full_name}\n📞 {phone}\n📍 {source_label}"
+    for staff in result.scalars().all():
+        await send_text(db, staff.telegram_user_id, text)
 
 
 async def send_document(

@@ -2,7 +2,7 @@ import httpx
 from aiogram import Router
 from aiogram.filters import CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import Message, ReplyKeyboardRemove
 from sqlalchemy import select
 
 from app.bot.keyboards import main_menu_kb, staff_menu_kb
@@ -10,7 +10,7 @@ from app.bot.states import Registration
 from app.config import get_settings
 from app.database import AsyncSessionLocal
 from app.models.patient import Patient
-from app.models.staff import StaffRole
+from app.models.staff import Staff, StaffRole
 from app.services.bot_texts import resolve_bot_texts
 
 router = Router(name="start")
@@ -22,6 +22,24 @@ ROLE_LABELS = {
     StaffRole.admin: "Admin",
     StaffRole.analyst: "Analizchi mutaxassis",
 }
+
+
+async def _get_active_staff(telegram_user_id: int) -> Staff | None:
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Staff).where(
+                Staff.telegram_user_id == telegram_user_id, Staff.is_active.is_(True)
+            )
+        )
+        return result.scalar_one_or_none()
+
+
+async def _greet_staff(message: Message, staff: Staff) -> None:
+    # Staff must never land on the patient keyboard — show the admin panel keyboard (or clear it).
+    await message.answer(
+        f"👋 Xush kelibsiz, {staff.full_name}!\nSiz {ROLE_LABELS[staff.role]} sifatida tizimdasiz.",
+        reply_markup=staff_menu_kb() or ReplyKeyboardRemove(),
+    )
 
 
 @router.message(CommandStart())
@@ -36,6 +54,13 @@ async def handle_start(message: Message, command: CommandObject, state: FSMConte
         linked = await _handle_invite(message, payload.removeprefix("invite_"))
         if linked:
             return
+
+    # Staff (director/admin/analyst) are recognised first so they get the admin keyboard,
+    # not the patient registration flow.
+    staff = await _get_active_staff(message.from_user.id)
+    if staff is not None:
+        await _greet_staff(message, staff)
+        return
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(
@@ -79,8 +104,8 @@ async def _handle_staff_onboarding(message: Message, token: str) -> None:
 
     role = StaffRole(response.json()["role"])
     await message.answer(
-        f"Xush kelibsiz! Siz {ROLE_LABELS[role]} sifatida ro'yxatdan o'tdingiz.",
-        reply_markup=staff_menu_kb(),
+        f"✅ Xush kelibsiz! Siz {ROLE_LABELS[role]} sifatida ro'yxatdan o'tdingiz.",
+        reply_markup=staff_menu_kb() or ReplyKeyboardRemove(),
     )
 
 

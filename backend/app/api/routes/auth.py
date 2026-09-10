@@ -16,7 +16,7 @@ from app.api.deps import (
 )
 from app.config import get_settings
 from app.core.security import create_access_token, generate_session_token, verify_password
-from app.core.telegram_auth import InvalidInitData, verify_webapp_init_data
+from app.core.telegram_auth import InvalidInitData, verify_login_widget, verify_webapp_init_data
 from app.models.staff import Staff, StaffRole
 from app.models.staff_session import StaffSession, StaffSessionStatus
 from app.schemas.auth import (
@@ -26,6 +26,7 @@ from app.schemas.auth import (
     StaffSessionConfirmResponse,
     StaffSessionCreateRequest,
     StaffSessionCreateResponse,
+    StaffTelegramLoginRequest,
     StaffWebAppLoginRequest,
     TokenResponse,
 )
@@ -144,6 +145,31 @@ async def staff_webapp_login(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
 
     result = await db.execute(select(Staff).where(Staff.telegram_user_id == tg_user["id"]))
+    staff = result.scalar_one_or_none()
+    if staff is None or not staff.is_active:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Siz xodim sifatida ro'yxatdan o'tmagansiz")
+
+    access_token = create_access_token(subject=str(staff.id), role=staff.role)
+    return TokenResponse(
+        access_token=access_token, role=staff.role, expires_in=settings.jwt_expire_minutes * 60
+    )
+
+
+@router.post("/staff/telegram-login", response_model=TokenResponse)
+async def staff_telegram_login(
+    payload: StaffTelegramLoginRequest, db: AsyncSession = Depends(get_db)
+) -> TokenResponse:
+    """Website login via the Telegram Login Widget (normal browser) — for director/admin/analyst."""
+    bot_token = await telegram.resolve_bot_token(db)
+    if not bot_token:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Bot tokeni sozlanmagan")
+
+    try:
+        verify_login_widget(payload.model_dump(), bot_token)
+    except InvalidInitData as exc:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
+
+    result = await db.execute(select(Staff).where(Staff.telegram_user_id == payload.id))
     staff = result.scalar_one_or_none()
     if staff is None or not staff.is_active:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Siz xodim sifatida ro'yxatdan o'tmagansiz")

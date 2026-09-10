@@ -72,6 +72,6 @@ def staff_menu_kb() -> ReplyKeyboardMarkup | None:
     if not settings.webapp_url:
         return None
     return ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="Asosiy menyu", web_app=WebAppInfo(url=settings.webapp_url))]],
+        keyboard=[[KeyboardButton(text="🖥 Admin panel", web_app=WebAppInfo(url=settings.webapp_url))]],
         resize_keyboard=True,
     )

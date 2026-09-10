@@ -158,6 +158,7 @@ async def create_patient(
     await db.commit()
     await db.refresh(patient)
     broadcast()
+    await telegram.notify_staff_new_patient(db, patient.full_name, patient.phone, "manual")
     return _to_out(patient, await telegram.resolve_bot_username(db))
 
 

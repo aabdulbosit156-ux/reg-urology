@@ -16,11 +16,22 @@ interface TokenResponse {
     expires_in: number;
 }
 
+export interface TelegramLoginData {
+    id: number;
+    auth_date: number;
+    hash: string;
+    first_name?: string;
+    last_name?: string;
+    username?: string;
+    photo_url?: string;
+}
+
 interface AuthContextValue {
     isLoading: boolean;
     me: Me | null;
     loginWithPassword: (username: string, password: string) => Promise<void>;
     loginWithTelegram: (initData: string) => Promise<void>;
+    loginWithTelegramWidget: (data: TelegramLoginData) => Promise<void>;
     logout: () => void;
 }
 
@@ -64,13 +75,18 @@ export const AuthProvider = ({ children }: PropsWithChildren) => {
         await applyToken(result);
     };
 
+    const loginWithTelegramWidget = async (data: TelegramLoginData) => {
+        const result = await api.post<TokenResponse>("/auth/staff/telegram-login", data);
+        await applyToken(result);
+    };
+
     const logout = () => {
         clearToken();
         setMe(null);
     };
 
     const value = useMemo(
-        () => ({ isLoading, me, loginWithPassword, loginWithTelegram, logout }),
+        () => ({ isLoading, me, loginWithPassword, loginWithTelegram, loginWithTelegramWidget, logout }),
         [isLoading, me],
     );
 

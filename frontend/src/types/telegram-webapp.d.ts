@@ -1,3 +1,5 @@
+import type { TelegramLoginData } from "@/providers/auth-provider";
+
 export {};
 
 declare global {
@@ -9,5 +11,6 @@ declare global {
                 expand: () => void;
             };
         };
+        onTelegramAuth?: (user: TelegramLoginData) => void;
     }
 }
