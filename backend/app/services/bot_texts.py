@@ -9,22 +9,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.clinic_settings import ClinicSettings
 
 DEFAULT_BOT_TEXTS: dict[str, str] = {
-    "welcome_new": "Assalomu alaykum! Ism-familiyangizni to'liq kiriting.",
-    "welcome_returning": "Xush kelibsiz, {full_name}!",
-    "status_new": "Arizangiz qabul qilindi. Mutaxassislarimiz tez orada siz bilan bog'lanadi.",
-    "status_scheduled": "Sizning qabul vaqtingiz belgilandi: {when}.",
+    "welcome_new": "👋 Assalomu alaykum! Ism-familiyangizni to'liq kiriting.",
+    "welcome_returning": "👋 Xush kelibsiz, {full_name}!",
+    "status_new": "✅ Arizangiz qabul qilindi. Mutaxassislarimiz tez orada siz bilan bog'lanadi.",
+    "status_scheduled": "🗓 Sizning qabul vaqtingiz belgilandi: {when}.",
     "status_unreachable": (
-        "Siz bilan bog'lanishga urinib ko'rdik, ammo bog'lana olmadik. Tez orada qayta aloqaga chiqamiz."
+        "📞 Siz bilan bog'lanishga urinib ko'rdik, ammo bog'lana olmadik. Tez orada qayta aloqaga chiqamiz."
     ),
-    "status_advised": "Sizga maslahat berildi. Savollaringiz bo'lsa, biz bilan bog'laning.",
-    "status_no_show": "Siz belgilangan qabulga kelmadingiz. Qayta band qilish uchun tez orada bog'lanamiz.",
-    "status_arrived": "Qabulga kelganingiz qayd etildi. Rahmat!",
+    "status_advised": "💬 Sizga maslahat berildi. Savollaringiz bo'lsa, biz bilan bog'laning.",
+    "status_no_show": "❗️ Siz belgilangan qabulga kelmadingiz. Qayta band qilish uchun tez orada bog'lanamiz.",
+    "status_arrived": "🤝 Qabulga kelganingiz qayd etildi. Rahmat!",
     "status_analysis_ordered": (
-        "Sizga analiz buyurildi. Namunani suratga olib botga yuboring yoki faylni yuklang "
+        "🧪 Sizga analiz buyurildi. Namunani suratga olib botga yuboring yoki faylni yuklang "
         "— mutaxassislarimiz maslahat beradi."
     ),
-    "status_analysis_ready": "Analiz natijalaringiz tayyor.",
-    "appointment_cancelled": "Sizning qabul vaqtingiz bekor qilindi. Tez orada siz bilan qayta bog'lanamiz.",
+    "status_analysis_ready": "📋 Analiz natijalaringiz tayyor.",
+    "appointment_cancelled": "🚫 Sizning qabul vaqtingiz bekor qilindi. Tez orada siz bilan qayta bog'lanamiz.",
 }
 
 

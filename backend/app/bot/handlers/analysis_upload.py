@@ -3,10 +3,12 @@ import os
 import uuid
 
 from aiogram import F, Router
+from aiogram.fsm.context import FSMContext
 from aiogram.types import FSInputFile, Message
 from sqlalchemy import select
 
 from app.bot.keyboards import ai_analyze_kb, main_menu_kb
+from app.bot.states import ExtraUpload
 from app.config import get_settings
 from app.database import AsyncSessionLocal
 from app.models.analysis import Analysis, AnalysisUploadedBy
@@ -17,24 +19,9 @@ router = Router(name="analysis_upload")
 settings = get_settings()
 
 
-@router.message(F.photo | F.document)
-async def handle_analysis_file(message: Message) -> None:
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(
-            select(Patient).where(Patient.telegram_user_id == message.from_user.id)
-        )
-        patient = result.scalar_one_or_none()
-
-    if patient is None:
-        return
-    if patient.status != PatientStatus.analysis_ordered:
-        await message.answer(
-            "Hozircha sizdan analiz fayli kutilmayapti. Savollaringiz bo'lsa, mutaxassislarimiz "
-            "bilan bog'lanamiz.",
-            reply_markup=main_menu_kb(),
-        )
-        return
-
+async def _store_uploaded_file(message: Message, patient: Patient) -> Analysis:
+    """Downloads the file, re-uploads it to the clinic's storage chat (so the patient can't
+    delete the original out from under us), and records it. See PLAN.md section 9."""
     if message.document:
         file_id = message.document.file_id
         file_unique_id = message.document.file_unique_id
@@ -75,15 +62,62 @@ async def handle_analysis_file(message: Message) -> None:
             telegram_file_unique_id=stored_file_unique_id,
             file_name=file_name,
             mime_type=mime_type,
-            ordered=True,
+            ordered=patient.status == PatientStatus.analysis_ordered,
         )
         db.add(analysis)
         await db.commit()
         await db.refresh(analysis)
 
     await notify_web_of_change()
+    return analysis
+
+
+async def _get_patient(telegram_user_id: int) -> Patient | None:
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(Patient).where(Patient.telegram_user_id == telegram_user_id))
+        return result.scalar_one_or_none()
+
+
+# Opt-in upload started from the "📎 Yana hujjat yuklash" button — accepts a file regardless of status.
+@router.message(ExtraUpload.waiting, F.photo | F.document)
+async def handle_extra_upload(message: Message, state: FSMContext) -> None:
+    patient = await _get_patient(message.from_user.id)
+    if patient is None:
+        await state.clear()
+        return
+    analysis = await _store_uploaded_file(message, patient)
     await message.answer(
-        "Analiz muvaffaqiyatli yuklandi. Rahmat! Mutaxassislarimiz tez orada ko'rib chiqadi.\n\n"
-        "Mutaxassis maslahatini olishni xohlaysizmi?",
+        "✅ Hujjat qabul qilindi. Mutaxassis maslahatini olishni xohlaysizmi?",
+        reply_markup=ai_analyze_kb(analysis.id),
+    )
+    # Stay in ExtraUpload.waiting so the patient can send several files in a row.
+
+
+@router.message(ExtraUpload.waiting)
+async def handle_extra_upload_other(message: Message, state: FSMContext) -> None:
+    await message.answer(
+        "📎 Iltimos, hujjat yoki rasm yuboring. Yakunlash uchun menyudagi tugmalardan foydalaning.",
+        reply_markup=main_menu_kb(),
+    )
+    await state.clear()
+
+
+@router.message(F.photo | F.document)
+async def handle_analysis_file(message: Message) -> None:
+    patient = await _get_patient(message.from_user.id)
+    if patient is None:
+        return
+    if patient.status != PatientStatus.analysis_ordered:
+        await message.answer(
+            "Hozircha sizdan analiz fayli kutilmayapti. Yangi hujjat qo'shish uchun "
+            "«📁 Hujjatlar» bo'limidan foydalaning.",
+            reply_markup=main_menu_kb(),
+        )
+        return
+
+    analysis = await _store_uploaded_file(message, patient)
+    await message.answer(
+        "✅ Analiz muvaffaqiyatli yuklandi. Rahmat! Mutaxassislarimiz tez orada ko'rib chiqadi.\n\n"
+        "✨ Mutaxassis maslahatini olishni xohlaysizmi?",
         reply_markup=ai_analyze_kb(analysis.id),
     )

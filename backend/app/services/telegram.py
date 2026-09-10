@@ -6,6 +6,7 @@ PLAN.md section 9 for the storage strategy.
 """
 
 import logging
+import uuid
 
 import httpx
 from sqlalchemy import select
@@ -45,22 +46,39 @@ async def fetch_bot_username(token: str) -> str | None:
     return response.json().get("result", {}).get("username")
 
 
-async def send_text(db: AsyncSession, telegram_user_id: int | None, text: str) -> None:
+async def send_text(
+    db: AsyncSession,
+    telegram_user_id: int | None,
+    text: str,
+    reply_markup: dict | None = None,
+) -> None:
     if not telegram_user_id:
         return
     token = await resolve_bot_token(db)
     if not token:
         logger.warning("Bot token not configured; skipping notification to %s", telegram_user_id)
         return
+    payload: dict = {"chat_id": telegram_user_id, "text": text}
+    if reply_markup is not None:
+        payload["reply_markup"] = reply_markup
     async with httpx.AsyncClient(timeout=10) as client:
         try:
             response = await client.post(
                 f"https://api.telegram.org/bot{token}/sendMessage",
-                json={"chat_id": telegram_user_id, "text": text},
+                json=payload,
             )
             response.raise_for_status()
         except httpx.HTTPError:
             logger.exception("Failed to notify patient %s", telegram_user_id)
+
+
+def ai_analyze_markup(analysis_id: uuid.UUID) -> dict:
+    """Inline keyboard matching the bot's ai_report callback handler (callback_data 'ai_analyze:<id>')."""
+    return {
+        "inline_keyboard": [
+            [{"text": "✨ Analizni tahlil qilish", "callback_data": f"ai_analyze:{analysis_id}"}]
+        ]
+    }
 
 
 async def send_document(

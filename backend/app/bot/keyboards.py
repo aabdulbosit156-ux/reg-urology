@@ -10,11 +10,20 @@ from aiogram.types import (
 
 from app.config import get_settings
 
-STATUS_BTN = "Status"
-DOCUMENTS_BTN = "Hujjatlar"
-CLINIC_BTN = "Klinika haqida"
+STATUS_BTN = "📊 Holatim"
+DOCUMENTS_BTN = "📁 Hujjatlar"
+CLINIC_BTN = "🏥 Klinika haqida"
 SKIP_GOAL_CALLBACK = "skip_goal"
 AI_ANALYZE_CALLBACK_PREFIX = "ai_analyze:"
+EXTRA_UPLOAD_CALLBACK = "extra_upload"
+
+
+def extra_upload_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📎 Yana hujjat yuklash", callback_data=EXTRA_UPLOAD_CALLBACK)]
+        ]
+    )
 
 
 def main_menu_kb() -> ReplyKeyboardMarkup:
@@ -38,7 +47,7 @@ def phone_request_kb() -> ReplyKeyboardMarkup:
 def goal_skip_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="O'tkazib yuborish", callback_data=SKIP_GOAL_CALLBACK)]
+            [InlineKeyboardButton(text="⏭ O'tkazib yuborish", callback_data=SKIP_GOAL_CALLBACK)]
         ]
     )
 

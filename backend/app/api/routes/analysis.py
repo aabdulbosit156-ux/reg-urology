@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,15 +20,16 @@ STAFF_ROLES = (StaffRole.dev, StaffRole.director, StaffRole.admin, StaffRole.ana
 
 @router.post(
     "/patients/{patient_id}/analysis",
-    response_model=AnalysisOut,
+    response_model=list[AnalysisOut],
     status_code=status.HTTP_201_CREATED,
 )
 async def upload_analysis(
     patient_id: uuid.UUID,
-    file: UploadFile,
+    files: list[UploadFile] = File(...),
+    caption: str | None = Form(None),
     db: AsyncSession = Depends(get_db),
     principal: CurrentPrincipal = Depends(require_roles(*STAFF_ROLES)),
-) -> AnalysisOut:
+) -> list[AnalysisOut]:
     result = await db.execute(select(Patient).where(Patient.id == patient_id))
     patient = result.scalar_one_or_none()
     if patient is None:
@@ -38,34 +39,48 @@ async def upload_analysis(
             status.HTTP_400_BAD_REQUEST, "Bemor hali botga ulanmagan, fayl yuborib bo'lmaydi"
         )
 
-    content = await file.read()
-    sent = await telegram.send_document(
-        db,
-        patient.telegram_user_id,
-        content,
-        file.filename or "analysis",
-        file.content_type,
-        caption="Analiz namunasi",
-    )
-    if sent is None:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Bot tokeni sozlanmagan")
-    file_id, file_unique_id = sent
+    created: list[Analysis] = []
+    for file in files:
+        content = await file.read()
+        sent = await telegram.send_document(
+            db,
+            patient.telegram_user_id,
+            content,
+            file.filename or "analysis",
+            file.content_type,
+            caption="📄 Analiz namunasi",
+        )
+        if sent is None:
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Bot tokeni sozlanmagan")
+        file_id, file_unique_id = sent
 
-    analysis = Analysis(
-        patient_id=patient.id,
-        uploaded_by=AnalysisUploadedBy.staff,
-        uploaded_by_staff_id=staff_id_or_none(principal),
-        telegram_file_id=file_id,
-        telegram_file_unique_id=file_unique_id,
-        file_name=file.filename,
-        mime_type=file.content_type,
-        ordered=patient.status == PatientStatus.analysis_ordered,
-    )
-    db.add(analysis)
+        analysis = Analysis(
+            patient_id=patient.id,
+            uploaded_by=AnalysisUploadedBy.staff,
+            uploaded_by_staff_id=staff_id_or_none(principal),
+            telegram_file_id=file_id,
+            telegram_file_unique_id=file_unique_id,
+            file_name=file.filename,
+            mime_type=file.content_type,
+            ordered=patient.status == PatientStatus.analysis_ordered,
+        )
+        db.add(analysis)
+        created.append(analysis)
+        await telegram.send_text(
+            db,
+            patient.telegram_user_id,
+            "✨ Ushbu hujjatni tahlil qilish:",
+            reply_markup=telegram.ai_analyze_markup(analysis.id),
+        )
+
+    if caption and caption.strip():
+        await telegram.send_text(db, patient.telegram_user_id, f"💬 Izoh: {caption.strip()}")
+
     await db.commit()
-    await db.refresh(analysis)
+    for analysis in created:
+        await db.refresh(analysis)
     broadcast()
-    return AnalysisOut.model_validate(analysis)
+    return [AnalysisOut.model_validate(a) for a in created]
 
 
 @router.get("/analysis/{analysis_id}/file")

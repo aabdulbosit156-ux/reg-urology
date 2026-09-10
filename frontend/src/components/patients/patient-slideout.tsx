@@ -32,7 +32,8 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
     const [statusError, setStatusError] = useState<string | null>(null);
     const [isSubmittingStatus, setIsSubmittingStatus] = useState(false);
 
-    const [uploadFile, setUploadFile] = useState<File | null>(null);
+    const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+    const [uploadCaption, setUploadCaption] = useState("");
     const [uploadError, setUploadError] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
 
@@ -61,7 +62,8 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
             setPendingStatus(null);
             setNote("");
             setStatusError(null);
-            setUploadFile(null);
+            setUploadFiles([]);
+            setUploadCaption("");
             setUploadError(null);
         }
     }, [patientId, loadPatient]);
@@ -117,14 +119,16 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
     };
 
     const handleUpload = async () => {
-        if (!uploadFile || !patient) return;
+        if (uploadFiles.length === 0 || !patient) return;
         setUploadError(null);
         setIsUploading(true);
         try {
             const formData = new FormData();
-            formData.append("file", uploadFile);
+            for (const file of uploadFiles) formData.append("files", file);
+            if (uploadCaption.trim()) formData.append("caption", uploadCaption.trim());
             await api.postForm(`/patients/${patient.id}/analysis`, formData);
-            setUploadFile(null);
+            setUploadFiles([]);
+            setUploadCaption("");
             await loadPatient();
             onChanged();
         } catch (err) {
@@ -300,15 +304,25 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
                                     <p className="text-sm font-semibold text-secondary">Analiz yuklash</p>
                                     <input
                                         type="file"
-                                        onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+                                        multiple
+                                        onChange={(e) => setUploadFiles(e.target.files ? Array.from(e.target.files) : [])}
                                         className="text-sm text-tertiary file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-secondary"
+                                    />
+                                    {uploadFiles.length > 0 && (
+                                        <p className="text-xs text-tertiary">{uploadFiles.length} ta fayl tanlandi</p>
+                                    )}
+                                    <TextArea
+                                        label="Izoh (bemorga yuboriladi, ixtiyoriy)"
+                                        value={uploadCaption}
+                                        onChange={setUploadCaption}
+                                        rows={2}
                                     />
                                     {uploadError && <p className="text-sm text-error-primary">{uploadError}</p>}
                                     <Button
                                         size="sm"
                                         iconLeading={UploadCloud02}
                                         isLoading={isUploading}
-                                        isDisabled={!uploadFile}
+                                        isDisabled={uploadFiles.length === 0}
                                         onClick={handleUpload}
                                         className="self-start"
                                     >

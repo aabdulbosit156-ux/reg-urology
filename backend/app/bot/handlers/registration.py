@@ -21,7 +21,7 @@ async def handle_full_name(message: Message, state: FSMContext) -> None:
         return
     await state.update_data(full_name=full_name)
     await state.set_state(Registration.phone)
-    await message.answer("Rahmat! Endi telefon raqamingizni yuboring.", reply_markup=phone_request_kb())
+    await message.answer("📱 Rahmat! Endi telefon raqamingizni yuboring.", reply_markup=phone_request_kb())
 
 
 @router.message(Registration.phone, F.contact)
@@ -45,7 +45,7 @@ async def _ask_goal(message: Message, state: FSMContext, phone: str) -> None:
     await state.update_data(phone=phone)
     await state.set_state(Registration.goal)
     await message.answer(
-        "Konsultatsiya maqsadini qisqacha yozing (ixtiyoriy).", reply_markup=goal_skip_kb()
+        "📝 Konsultatsiya maqsadini qisqacha yozing (ixtiyoriy).", reply_markup=goal_skip_kb()
     )
 
 
@@ -114,6 +114,6 @@ async def _finish_registration(
     await notify_web_of_change()
     await state.clear()
     await answer_target.answer(
-        "Muvaffaqiyatli ro'yxatdan o'tdingiz! Tez orada mutaxassislarimiz siz bilan bog'lanadi.",
+        "🎉 Muvaffaqiyatli ro'yxatdan o'tdingiz! Tez orada mutaxassislarimiz siz bilan bog'lanadi.",
         reply_markup=main_menu_kb(),
     )
