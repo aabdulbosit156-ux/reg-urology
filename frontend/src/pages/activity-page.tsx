@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Table } from "@/components/application/table/table";
+import { PageHeader } from "@/components/layout/page-header";
 import { ApiError, api } from "@/lib/api-client";
 import { formatDateTimeUz as formatDateTime } from "@/lib/uz-date";
 import type { ActivityLogListResponse, ActivityLogOut } from "@/types/activity";
@@ -46,11 +47,13 @@ export const ActivityPage = () => {
     }, [offset]);
 
     return (
-        <div className="flex flex-col gap-6">
-            <div>
-                <h1 className="text-xl font-semibold text-primary">Faoliyat</h1>
-                <p className="text-sm text-tertiary">{total} ta yozuv</p>
-            </div>
+        <div className="flex flex-col gap-6 px-4 py-6 pb-24 lg:px-0 lg:py-0">
+            <PageHeader>
+                <div>
+                    <h1 className="text-xl font-semibold text-primary">Faoliyat</h1>
+                    <p className="text-sm text-tertiary">{total} ta yozuv</p>
+                </div>
+            </PageHeader>
 
             {error && <p className="text-sm text-error-primary">{error}</p>}
 

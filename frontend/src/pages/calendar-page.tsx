@@ -6,6 +6,7 @@ import { Button } from "@/components/base/buttons/button";
 import { DayView } from "@/components/calendar/day-view";
 import { MonthView } from "@/components/calendar/month-view";
 import { WeekView } from "@/components/calendar/week-view";
+import { PageHeader } from "@/components/layout/page-header";
 import { PatientSlideout } from "@/components/patients/patient-slideout";
 import { useLiveUpdates } from "@/hooks/use-live-updates";
 import { ApiError, api } from "@/lib/api-client";
@@ -49,8 +50,9 @@ export const CalendarPage = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const bookPatientId = searchParams.get("book");
     const bookPatientName = searchParams.get("bookName");
+    const rescheduleAppointmentId = searchParams.get("appointmentId");
 
-    const [view, setView] = useState<ViewMode>("week");
+    const [view, setView] = useState<ViewMode>("month");
     const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
     const [appointments, setAppointments] = useState<CalendarAppointment[]>([]);
     const [schedule, setSchedule] = useState<ScheduleSettings | null>(null);
@@ -145,6 +147,7 @@ export const CalendarPage = () => {
             const next = new URLSearchParams(prev);
             next.delete("book");
             next.delete("bookName");
+            next.delete("appointmentId");
             return next;
         });
         setBookingError(null);
@@ -155,12 +158,16 @@ export const CalendarPage = () => {
         setIsBooking(true);
         setBookingError(null);
         try {
-            await api.patch(`/patients/${bookPatientId}/status`, {
-                to_status: "scheduled",
-                appointment_start_at: start.toISOString(),
-                appointment_duration_min: schedule.slot_minutes,
-                note: null,
-            });
+            if (rescheduleAppointmentId) {
+                await api.patch(`/appointments/${rescheduleAppointmentId}`, { start_at: start.toISOString() });
+            } else {
+                await api.patch(`/patients/${bookPatientId}/status`, {
+                    to_status: "scheduled",
+                    appointment_start_at: start.toISOString(),
+                    appointment_duration_min: schedule.slot_minutes,
+                    note: null,
+                });
+            }
             await loadAppointments();
             exitBookingMode();
         } catch (err) {
@@ -208,40 +215,42 @@ export const CalendarPage = () => {
         : undefined;
 
     return (
-        <div className="flex flex-col gap-6">
-            {bookPatientId && (
-                <div className="flex items-center justify-between gap-3 rounded-xl bg-brand-primary_alt px-4 py-3">
-                    <p className="text-sm text-brand-secondary">
-                        <strong>{bookPatientName ?? "Bemor"}</strong> uchun qabul vaqtini tanlang
-                        {isFindingSlot && " — bo'sh slot qidirilmoqda..."}
-                        {isBooking && " — band qilinmoqda..."}
-                    </p>
-                    <Button size="sm" color="secondary" iconLeading={CloseIcon} onClick={exitBookingMode} aria-label="Bekor qilish" />
-                </div>
-            )}
-            {bookingError && <p className="text-sm text-error-primary">{bookingError}</p>}
-
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <h1 className="text-xl font-semibold text-primary">Kalendar</h1>
-                {!bookPatientId && (
-                    <Tabs selectedKey={view} onSelectionChange={(key) => setView(key as ViewMode)}>
-                        <Tabs.List type="button-border" items={VIEW_TABS}>
-                            {(item) => <Tabs.Item id={item.id} label={item.label} />}
-                        </Tabs.List>
-                    </Tabs>
+        <div className="flex flex-col gap-6 px-4 py-6 pb-24 lg:px-0 lg:py-0">
+            <PageHeader>
+                {bookPatientId && (
+                    <div className="flex items-center justify-between gap-3 rounded-xl bg-brand-primary_alt px-4 py-3">
+                        <p className="text-sm text-brand-secondary">
+                            <strong>{bookPatientName ?? "Bemor"}</strong> uchun qabul vaqtini tanlang
+                            {isFindingSlot && " — bo'sh slot qidirilmoqda..."}
+                            {isBooking && " — band qilinmoqda..."}
+                        </p>
+                        <Button size="sm" color="secondary" iconLeading={CloseIcon} onClick={exitBookingMode} aria-label="Bekor qilish" />
+                    </div>
                 )}
-            </div>
+                {bookingError && <p className="text-sm text-error-primary">{bookingError}</p>}
 
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <Button size="sm" color="secondary" iconLeading={ChevronLeft} onClick={goPrev} aria-label="Oldingi" />
-                    <Button size="sm" color="secondary" onClick={goToday}>
-                        Bugun
-                    </Button>
-                    <Button size="sm" color="secondary" iconLeading={ChevronRight} onClick={goNext} aria-label="Keyingi" />
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <h1 className="text-xl font-semibold text-primary">Kalendar</h1>
+                    {!bookPatientId && (
+                        <Tabs selectedKey={view} onSelectionChange={(key) => setView(key as ViewMode)}>
+                            <Tabs.List type="button-border" items={VIEW_TABS}>
+                                {(item) => <Tabs.Item id={item.id} label={item.label} />}
+                            </Tabs.List>
+                        </Tabs>
+                    )}
                 </div>
-                <p className="text-sm font-medium text-secondary capitalize">{headerLabel}</p>
-            </div>
+
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <Button size="sm" color="secondary" iconLeading={ChevronLeft} onClick={goPrev} aria-label="Oldingi" />
+                        <Button size="sm" color="secondary" onClick={goToday}>
+                            Bugun
+                        </Button>
+                        <Button size="sm" color="secondary" iconLeading={ChevronRight} onClick={goNext} aria-label="Keyingi" />
+                    </div>
+                    <p className="text-sm font-medium text-secondary capitalize">{headerLabel}</p>
+                </div>
+            </PageHeader>
 
             {error && <p className="text-sm text-error-primary">{error}</p>}
 
@@ -275,8 +284,6 @@ export const CalendarPage = () => {
                             monthAnchor={anchor}
                             gridStart={range.start}
                             appointments={appointments}
-                            onOpenPatient={setSelectedPatientId}
-                            onReschedule={handleReschedule}
                             onSelectDay={(day) => {
                                 setAnchor(day);
                                 setView("day");

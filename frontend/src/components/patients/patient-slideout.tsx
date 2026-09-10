@@ -66,6 +66,25 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
         }
     }, [patientId, loadPatient]);
 
+    // So the mobile physical "back" button closes the slideout instead of leaving the page.
+    useEffect(() => {
+        if (!patientId) return;
+        let closedViaBack = false;
+        window.history.pushState({ patientBarOpen: true }, "", "#baropen");
+        const handlePopState = () => {
+            closedViaBack = true;
+            onOpenChange(false);
+        };
+        window.addEventListener("popstate", handlePopState);
+        return () => {
+            window.removeEventListener("popstate", handlePopState);
+            if (!closedViaBack && window.location.hash === "#baropen") {
+                window.history.back();
+            }
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [patientId]);
+
     const handleConfirmStatus = async () => {
         if (!pendingStatus || !patient) return;
         setStatusError(null);
@@ -87,6 +106,14 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
         if (!patient) return;
         onOpenChange(false);
         navigate(`/calendar?book=${patient.id}&bookName=${encodeURIComponent(patient.full_name)}`);
+    };
+
+    const handleRescheduleClick = () => {
+        if (!patient || !upcomingAppointment) return;
+        onOpenChange(false);
+        navigate(
+            `/calendar?book=${patient.id}&bookName=${encodeURIComponent(patient.full_name)}&appointmentId=${upcomingAppointment.id}`,
+        );
     };
 
     const handleUpload = async () => {
@@ -172,6 +199,15 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
                                         <div className="flex items-baseline gap-1.5">
                                             <dt className="shrink-0 text-tertiary">Qabul:</dt>
                                             <dd className="font-semibold text-brand-secondary">{formatDateTime(upcomingAppointment.start_at)}</dd>
+                                            {canManageStatus && (
+                                                <button
+                                                    type="button"
+                                                    onClick={handleRescheduleClick}
+                                                    className="cursor-pointer text-xs font-medium text-tertiary underline outline-focus-ring hover:text-secondary"
+                                                >
+                                                    Vaqtni o'zgartirish
+                                                </button>
+                                            )}
                                         </div>
                                     )}
                                     <dd className="text-xs text-quaternary">
@@ -341,6 +377,12 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
                             </div>
                         )}
                     </SlideoutMenu.Content>
+
+                    <SlideoutMenu.Footer className="flex justify-end">
+                        <Button color="secondary" onClick={close}>
+                            Yopish
+                        </Button>
+                    </SlideoutMenu.Footer>
                 </>
             )}
         </SlideoutMenu>

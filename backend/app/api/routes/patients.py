@@ -1,5 +1,6 @@
 import secrets
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select, update
@@ -27,6 +28,7 @@ from app.schemas.patient import (
 from app.services import telegram
 from app.services.bot_texts import resolve_bot_texts
 from app.services.events import broadcast
+from app.services.scheduling import find_conflicting_appointment
 
 router = APIRouter(prefix="/patients", tags=["patients"])
 
@@ -222,12 +224,33 @@ async def change_status(
             f"'{patient.status.value}' holatidan '{payload.to_status.value}' holatiga o'tib bo'lmaydi",
         )
 
+    if payload.to_status == PatientStatus.no_show:
+        appointment_result = await db.execute(
+            select(Appointment)
+            .where(Appointment.patient_id == patient.id, Appointment.status == AppointmentStatus.scheduled)
+            .order_by(Appointment.start_at.desc())
+        )
+        current_appointment = appointment_result.scalars().first()
+        if current_appointment and datetime.now(UTC) < current_appointment.start_at:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                "Qabul vaqti hali kelmagan — belgilangan vaqtdan oldin 'Kelmagan' deb belgilab bo'lmaydi",
+            )
+
     notification_when = None
     if payload.to_status == PatientStatus.scheduled:
         if payload.appointment_start_at is None or not payload.appointment_duration_min:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST, "Qabul sanasi va davomiyligi ko'rsatilishi shart"
             )
+        conflict = await find_conflicting_appointment(
+            db,
+            payload.appointment_start_at,
+            payload.appointment_duration_min,
+            exclude_patient_id=patient.id,
+        )
+        if conflict is not None:
+            raise HTTPException(status.HTTP_409_CONFLICT, "Bu vaqt band qilingan, boshqa vaqt tanlang")
         await db.execute(
             update(Appointment)
             .where(

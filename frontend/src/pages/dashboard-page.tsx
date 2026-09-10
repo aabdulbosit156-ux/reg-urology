@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { CalendarCheck01, ClipboardCheck, TrendUp01, Users01 } from "@untitledui/icons";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { ChartTooltipContent } from "@/components/application/charts/charts-base";
+import { PageHeader } from "@/components/layout/page-header";
 import { useLiveUpdates } from "@/hooks/use-live-updates";
 import { ApiError, api } from "@/lib/api-client";
 import { formatDayMonthUz as formatDay } from "@/lib/uz-date";
@@ -52,19 +53,21 @@ export const DashboardPage = () => {
     useLiveUpdates(loadDashboard);
 
     if (isLoading) {
-        return <p className="text-sm text-tertiary">Yuklanmoqda...</p>;
+        return <p className="p-4 text-sm text-tertiary lg:p-0">Yuklanmoqda...</p>;
     }
 
     if (error || !data) {
-        return <p className="text-sm text-error-primary">{error ?? "Ma'lumotlar topilmadi"}</p>;
+        return <p className="p-4 text-sm text-error-primary lg:p-0">{error ?? "Ma'lumotlar topilmadi"}</p>;
     }
 
     return (
-        <div className="flex flex-col gap-6">
-            <div>
-                <h1 className="text-xl font-semibold text-primary">Dashboard</h1>
-                <p className="text-sm text-tertiary">Klinika faoliyati bo'yicha umumiy ko'rsatkichlar</p>
-            </div>
+        <div className="flex flex-col gap-6 px-4 py-6 pb-24 lg:px-0 lg:py-0">
+            <PageHeader>
+                <div>
+                    <h1 className="text-xl font-semibold text-primary">Dashboard</h1>
+                    <p className="text-sm text-tertiary">Klinika faoliyati bo'yicha umumiy ko'rsatkichlar</p>
+                </div>
+            </PageHeader>
 
             {isAnalyst ? (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -100,7 +103,14 @@ export const DashboardPage = () => {
                                         className="text-xs"
                                         tick={{ fill: "currentColor" }}
                                     />
-                                    <Tooltip content={<ChartTooltipContent labelFormatter={(label) => formatDay(label as string)} />} />
+                                    <Tooltip
+                                        content={
+                                            <ChartTooltipContent
+                                                formatter={(value) => `${value} ta lead`}
+                                                labelFormatter={(label) => formatDay(label as string)}
+                                            />
+                                        }
+                                    />
                                     <Area
                                         type="monotone"
                                         dataKey="count"

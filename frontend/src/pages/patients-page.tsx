@@ -4,6 +4,7 @@ import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/mod
 import { Tabs } from "@/components/application/tabs/tabs";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
+import { PageHeader } from "@/components/layout/page-header";
 import { AddPatientModal } from "@/components/patients/add-patient-modal";
 import { PatientSlideout } from "@/components/patients/patient-slideout";
 import { PatientTable } from "@/components/patients/patient-table";
@@ -78,33 +79,35 @@ export const PatientsPage = () => {
     };
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <h1 className="text-xl font-semibold text-primary">
-                    Bemorlar <span className="text-tertiary">{total}</span>
-                </h1>
-                {canManage && (
-                    <Button iconLeading={Plus} onClick={() => setIsAddModalOpen(true)} className="hidden lg:inline-flex">
-                        Yangi bemor
-                    </Button>
-                )}
-            </div>
+        <div className="flex flex-col gap-6 px-4 py-6 pb-24 lg:px-0 lg:py-0">
+            <PageHeader>
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <h1 className="text-xl font-semibold text-primary">
+                        Bemorlar <span className="text-tertiary">{total}</span>
+                    </h1>
+                    {canManage && (
+                        <Button iconLeading={Plus} onClick={() => setIsAddModalOpen(true)} className="hidden lg:inline-flex">
+                            Yangi bemor
+                        </Button>
+                    )}
+                </div>
 
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <Tabs selectedKey={segment} onSelectionChange={(key) => setSegment(key as PatientSegment)}>
-                    <Tabs.List type="button-border" items={SEGMENT_TABS}>
-                        {(item) => <Tabs.Item id={item.id} label={item.label} icon={item.icon} />}
-                    </Tabs.List>
-                </Tabs>
-                <Input
-                    icon={SearchLg}
-                    aria-label="Qidirish"
-                    placeholder="Ism yoki telefon bo'yicha qidirish"
-                    value={searchInput}
-                    onChange={setSearchInput}
-                    className="md:w-80"
-                />
-            </div>
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <Tabs selectedKey={segment} onSelectionChange={(key) => setSegment(key as PatientSegment)}>
+                        <Tabs.List type="button-border" items={SEGMENT_TABS}>
+                            {(item) => <Tabs.Item id={item.id} label={item.label} icon={item.icon} />}
+                        </Tabs.List>
+                    </Tabs>
+                    <Input
+                        icon={SearchLg}
+                        aria-label="Qidirish"
+                        placeholder="Ism yoki telefon bo'yicha qidirish"
+                        value={searchInput}
+                        onChange={setSearchInput}
+                        className="md:w-80"
+                    />
+                </div>
+            </PageHeader>
 
             {canManage && (
                 <button

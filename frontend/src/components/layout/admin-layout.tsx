@@ -26,7 +26,7 @@ export const AdminLayout = () => {
     const mobileNavItems = navItems.filter((item) => item.label !== "Faoliyat");
 
     return (
-        <div className="flex min-h-screen flex-col bg-secondary lg:flex-row">
+        <div className="flex h-dvh flex-col bg-secondary lg:h-screen lg:flex-row">
             <SidebarNavigationSimple
                 activeUrl={location.pathname}
                 items={navItems}
@@ -34,7 +34,7 @@ export const AdminLayout = () => {
                 featureCard={<AccountFooter />}
                 mobileHeader={<MobileTopBar />}
             />
-            <main className="w-full flex-1 px-4 py-6 pb-24 lg:px-8 lg:py-8">
+            <main className="flex w-full flex-1 flex-col overflow-y-auto lg:px-8 lg:py-8">
                 <Outlet />
             </main>
             <MobileBottomNav activeUrl={location.pathname} items={mobileNavItems} />

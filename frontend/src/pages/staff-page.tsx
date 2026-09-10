@@ -3,6 +3,7 @@ import { Plus } from "@untitledui/icons";
 import { Table } from "@/components/application/table/table";
 import { Badge, BadgeWithDot } from "@/components/base/badges/badges";
 import { Button } from "@/components/base/buttons/button";
+import { PageHeader } from "@/components/layout/page-header";
 import { InviteStaffModal } from "@/components/staff/invite-staff-modal";
 import { useLiveUpdates } from "@/hooks/use-live-updates";
 import { ApiError, api } from "@/lib/api-client";
@@ -50,17 +51,19 @@ export const StaffPage = () => {
     useLiveUpdates(loadStaff);
 
     return (
-        <div className="flex flex-col gap-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <h1 className="text-xl font-semibold text-primary">
-                    Xodimlar <span className="text-tertiary">{staff.length}</span>
-                </h1>
-                {canInvite && (
-                    <Button iconLeading={Plus} onClick={() => setIsInviteOpen(true)}>
-                        Xodim qo'shish
-                    </Button>
-                )}
-            </div>
+        <div className="flex flex-col gap-6 px-4 py-6 pb-24 lg:px-0 lg:py-0">
+            <PageHeader>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <h1 className="text-xl font-semibold text-primary">
+                        Xodimlar <span className="text-tertiary">{staff.length}</span>
+                    </h1>
+                    {canInvite && (
+                        <Button iconLeading={Plus} onClick={() => setIsInviteOpen(true)}>
+                            Xodim qo'shish
+                        </Button>
+                    )}
+                </div>
+            </PageHeader>
 
             {error && <p className="text-sm text-error-primary">{error}</p>}
 

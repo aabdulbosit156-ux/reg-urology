@@ -17,6 +17,7 @@ from app.schemas.appointment import (
 )
 from app.services import telegram
 from app.services.events import broadcast
+from app.services.scheduling import find_conflicting_appointment
 
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
@@ -70,6 +71,16 @@ async def reschedule_appointment(
 
     patient_result = await db.execute(select(Patient).where(Patient.id == appointment.patient_id))
     patient = patient_result.scalar_one()
+
+    conflict = await find_conflicting_appointment(
+        db,
+        payload.start_at,
+        appointment.duration_min,
+        exclude_appointment_id=appointment.id,
+        exclude_patient_id=appointment.patient_id,
+    )
+    if conflict is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Bu vaqt band qilingan, boshqa vaqt tanlang")
 
     appointment.start_at = payload.start_at
     db.add(
