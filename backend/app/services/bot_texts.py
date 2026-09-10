@@ -24,6 +24,7 @@ DEFAULT_BOT_TEXTS: dict[str, str] = {
         "— mutaxassislarimiz maslahat beradi."
     ),
     "status_analysis_ready": "Analiz natijalaringiz tayyor.",
+    "appointment_cancelled": "Sizning qabul vaqtingiz bekor qilindi. Tez orada siz bilan qayta bog'lanamiz.",
 }
 
 

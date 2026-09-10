@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { Plus, SearchLg } from "@untitledui/icons";
+import { useCallback, useEffect, useState, type FC } from "react";
+import { Clock, Plus, PhoneX, SearchLg, UserPlus01 } from "@untitledui/icons";
 import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/modal";
 import { Tabs } from "@/components/application/tabs/tabs";
 import { Button } from "@/components/base/buttons/button";
@@ -13,10 +13,10 @@ import { SEGMENT_LABELS } from "@/lib/patient-status";
 import { useAuth } from "@/providers/auth-provider";
 import type { Patient, PatientListResponse, PatientSegment } from "@/types/patient";
 
-const SEGMENT_TABS: { id: PatientSegment; label: string }[] = [
-    { id: "new", label: SEGMENT_LABELS.new },
-    { id: "in_progress", label: SEGMENT_LABELS.in_progress },
-    { id: "unresponsive", label: SEGMENT_LABELS.unresponsive },
+const SEGMENT_TABS: { id: PatientSegment; label: string; icon: FC<{ className?: string }> }[] = [
+    { id: "new", label: SEGMENT_LABELS.new, icon: UserPlus01 },
+    { id: "in_progress", label: SEGMENT_LABELS.in_progress, icon: Clock },
+    { id: "unresponsive", label: SEGMENT_LABELS.unresponsive, icon: PhoneX },
 ];
 
 export const PatientsPage = () => {
@@ -80,12 +80,11 @@ export const PatientsPage = () => {
     return (
         <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                    <h1 className="text-xl font-semibold text-primary">Bemorlar</h1>
-                    <p className="text-sm text-tertiary">{total} ta bemor</p>
-                </div>
+                <h1 className="text-xl font-semibold text-primary">
+                    Bemorlar <span className="text-tertiary">{total}</span>
+                </h1>
                 {canManage && (
-                    <Button iconLeading={Plus} onClick={() => setIsAddModalOpen(true)}>
+                    <Button iconLeading={Plus} onClick={() => setIsAddModalOpen(true)} className="hidden lg:inline-flex">
                         Yangi bemor
                     </Button>
                 )}
@@ -94,7 +93,7 @@ export const PatientsPage = () => {
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <Tabs selectedKey={segment} onSelectionChange={(key) => setSegment(key as PatientSegment)}>
                     <Tabs.List type="button-border" items={SEGMENT_TABS}>
-                        {(item) => <Tabs.Item id={item.id} label={item.label} />}
+                        {(item) => <Tabs.Item id={item.id} label={item.label} icon={item.icon} />}
                     </Tabs.List>
                 </Tabs>
                 <Input
@@ -106,6 +105,18 @@ export const PatientsPage = () => {
                     className="md:w-80"
                 />
             </div>
+
+            {canManage && (
+                <button
+                    type="button"
+                    onClick={() => setIsAddModalOpen(true)}
+                    aria-label="Yangi bemor"
+                    className="fixed right-4 bottom-24 z-30 flex size-14 cursor-pointer items-center justify-center rounded-full bg-brand-solid text-fg-white shadow-lg outline-focus-ring transition duration-100 ease-linear hover:bg-brand-solid_hover lg:hidden"
+                    style={{ marginBottom: "env(safe-area-inset-bottom)" }}
+                >
+                    <Plus className="size-6" />
+                </button>
+            )}
 
             {error && <p className="text-sm text-error-primary">{error}</p>}
 

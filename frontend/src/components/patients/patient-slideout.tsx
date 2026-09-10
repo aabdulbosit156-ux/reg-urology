@@ -155,14 +155,29 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
 
                         {patient && (
                             <div className="flex flex-col gap-8 pb-8">
-                                <div className="flex flex-col gap-1 text-sm text-secondary">
-                                    {patient.telegram_username && <p>Telegram: @{patient.telegram_username}</p>}
-                                    {patient.consultation_goal && <p>Maqsad: {patient.consultation_goal}</p>}
-                                    {upcomingAppointment && <p>Qabul: {formatDateTime(upcomingAppointment.start_at)}</p>}
-                                    <p className="text-tertiary">
+                                <dl className="flex flex-col gap-2 text-sm">
+                                    {patient.telegram_username && (
+                                        <div className="flex items-baseline gap-1.5">
+                                            <dt className="shrink-0 text-tertiary">Telegram:</dt>
+                                            <dd className="font-medium text-secondary">@{patient.telegram_username}</dd>
+                                        </div>
+                                    )}
+                                    {patient.consultation_goal && (
+                                        <div className="flex items-baseline gap-1.5">
+                                            <dt className="shrink-0 text-tertiary">Maqsad:</dt>
+                                            <dd className="font-medium text-secondary">{patient.consultation_goal}</dd>
+                                        </div>
+                                    )}
+                                    {upcomingAppointment && (
+                                        <div className="flex items-baseline gap-1.5">
+                                            <dt className="shrink-0 text-tertiary">Qabul:</dt>
+                                            <dd className="font-semibold text-brand-secondary">{formatDateTime(upcomingAppointment.start_at)}</dd>
+                                        </div>
+                                    )}
+                                    <dd className="text-xs text-quaternary">
                                         {patient.source === "bot" ? "Bot orqali" : "Qo'lda"} qo'shilgan · {formatDateTime(patient.created_at)}
-                                    </p>
-                                </div>
+                                    </dd>
+                                </dl>
 
                                 <div>
                                     <p className="mb-3 text-sm font-semibold text-secondary">Bosqichlar</p>
@@ -204,16 +219,19 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
                                         <p className="text-sm font-semibold text-secondary">Holatni o'zgartirish</p>
                                         {!pendingStatus ? (
                                             <div className="flex flex-wrap gap-2">
-                                                {nextStatuses.map((s) => (
-                                                    <Button
-                                                        key={s}
-                                                        size="sm"
-                                                        color="secondary"
-                                                        onClick={() => (s === "scheduled" ? handleScheduleClick() : setPendingStatus(s))}
-                                                    >
-                                                        {STATUS_LABELS[s]}
-                                                    </Button>
-                                                ))}
+                                                {nextStatuses.map((s) => {
+                                                    const isCancelFromQabul = s === "new" && patient.status === "scheduled";
+                                                    return (
+                                                        <Button
+                                                            key={s}
+                                                            size="sm"
+                                                            color={isCancelFromQabul ? "secondary-destructive" : "secondary"}
+                                                            onClick={() => (s === "scheduled" ? handleScheduleClick() : setPendingStatus(s))}
+                                                        >
+                                                            {isCancelFromQabul ? "Qabuldan chiqarish" : STATUS_LABELS[s]}
+                                                        </Button>
+                                                    );
+                                                })}
                                             </div>
                                         ) : (
                                             <div className="flex flex-col gap-3 rounded-lg bg-secondary p-3 ring-1 ring-secondary">

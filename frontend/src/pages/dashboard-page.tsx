@@ -15,13 +15,13 @@ interface StatCardProps {
 }
 
 const StatCard = ({ label, value, icon: Icon }: StatCardProps) => (
-    <div className="flex items-center gap-4 rounded-xl border border-secondary bg-primary p-5">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-secondary">
-            <Icon className="size-5 text-fg-brand-primary" />
+    <div className="flex items-center gap-2.5 rounded-xl border border-secondary bg-primary p-3 sm:gap-4 sm:p-5">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-secondary sm:size-10">
+            <Icon className="size-4 text-fg-brand-primary sm:size-5" />
         </div>
-        <div>
-            <p className="text-sm text-tertiary">{label}</p>
-            <p className="text-2xl font-semibold text-primary">{value}</p>
+        <div className="min-w-0">
+            <p className="truncate text-xs text-tertiary sm:text-sm">{label}</p>
+            <p className="text-lg font-semibold text-primary sm:text-2xl">{value}</p>
         </div>
     </div>
 );

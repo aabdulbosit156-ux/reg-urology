@@ -52,10 +52,9 @@ export const StaffPage = () => {
     return (
         <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h1 className="text-xl font-semibold text-primary">Xodimlar</h1>
-                    <p className="text-sm text-tertiary">{staff.length} ta xodim</p>
-                </div>
+                <h1 className="text-xl font-semibold text-primary">
+                    Xodimlar <span className="text-tertiary">{staff.length}</span>
+                </h1>
                 {canInvite && (
                     <Button iconLeading={Plus} onClick={() => setIsInviteOpen(true)}>
                         Xodim qo'shish

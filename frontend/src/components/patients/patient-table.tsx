@@ -2,6 +2,7 @@ import { Phone, Send03, Trash01 } from "@untitledui/icons";
 import { Button } from "@/components/base/buttons/button";
 import { Table } from "@/components/application/table/table";
 import { StatusBadge } from "@/components/patients/status-badge";
+import { useBreakpoint } from "@/hooks/use-breakpoint";
 import { formatDateUz as formatDate } from "@/lib/uz-date";
 import type { Patient } from "@/types/patient";
 
@@ -10,12 +11,17 @@ interface Column {
     label: string;
 }
 
-const COLUMNS: Column[] = [
+const DESKTOP_COLUMNS: Column[] = [
     { id: "patient", label: "Bemor" },
     { id: "phone", label: "Telefon" },
     { id: "status", label: "Holat" },
     { id: "created", label: "Sana" },
     { id: "actions", label: "" },
+];
+
+const MOBILE_COLUMNS: Column[] = [
+    { id: "patient", label: "Bemor" },
+    { id: "call", label: "" },
 ];
 
 interface PatientTableProps {
@@ -26,9 +32,12 @@ interface PatientTableProps {
 }
 
 export const PatientTable = ({ patients, canManage, onOpen, onDelete }: PatientTableProps) => {
+    const isDesktop = useBreakpoint("lg");
+    const columns = isDesktop ? DESKTOP_COLUMNS : MOBILE_COLUMNS;
+
     return (
         <Table aria-label="Bemorlar ro'yxati">
-            <Table.Header columns={COLUMNS}>{(column) => <Table.Head id={column.id}>{column.label}</Table.Head>}</Table.Header>
+            <Table.Header columns={columns}>{(column) => <Table.Head id={column.id}>{column.label}</Table.Head>}</Table.Header>
             <Table.Body
                 items={patients}
                 renderEmptyState={() => (
@@ -36,15 +45,17 @@ export const PatientTable = ({ patients, canManage, onOpen, onDelete }: PatientT
                 )}
             >
                 {(patient) => (
-                    <Table.Row id={patient.id} columns={COLUMNS} onAction={() => onOpen(patient.id)} className="cursor-pointer">
+                    <Table.Row id={patient.id} columns={columns} onAction={() => onOpen(patient.id)} className="cursor-pointer">
                         {(column) => {
                             switch (column.id) {
                                 case "patient":
                                     return (
                                         <Table.Cell>
                                             <p className="text-sm font-medium text-primary">{patient.full_name}</p>
-                                            {patient.telegram_username && (
+                                            {patient.telegram_username ? (
                                                 <p className="text-xs text-tertiary">@{patient.telegram_username}</p>
+                                            ) : (
+                                                !isDesktop && <p className="text-xs text-tertiary">{patient.phone}</p>
                                             )}
                                         </Table.Cell>
                                     );
@@ -58,6 +69,20 @@ export const PatientTable = ({ patients, canManage, onOpen, onDelete }: PatientT
                                     );
                                 case "created":
                                     return <Table.Cell>{formatDate(patient.created_at)}</Table.Cell>;
+                                case "call":
+                                    return (
+                                        <Table.Cell>
+                                            <div className="flex justify-end">
+                                                <Button
+                                                    href={`tel:${patient.phone}`}
+                                                    size="sm"
+                                                    color="tertiary"
+                                                    iconLeading={Phone}
+                                                    aria-label="Qo'ng'iroq qilish"
+                                                />
+                                            </div>
+                                        </Table.Cell>
+                                    );
                                 case "actions":
                                     return (
                                         <Table.Cell>

@@ -42,7 +42,7 @@ VALID_TRANSITIONS: dict[PatientStatus, set[PatientStatus]] = {
         PatientStatus.unreachable,
         PatientStatus.advised,
     },
-    PatientStatus.scheduled: {PatientStatus.arrived, PatientStatus.no_show},
+    PatientStatus.scheduled: {PatientStatus.arrived, PatientStatus.no_show, PatientStatus.new},
     PatientStatus.no_show: {PatientStatus.scheduled, PatientStatus.unreachable},
     PatientStatus.arrived: {PatientStatus.analysis_ordered, PatientStatus.advised},
     PatientStatus.analysis_ordered: {PatientStatus.analysis_ready},
@@ -51,6 +51,7 @@ VALID_TRANSITIONS: dict[PatientStatus, set[PatientStatus]] = {
 }
 
 STATUS_NOTIFICATION_KEYS: dict[PatientStatus, str] = {
+    PatientStatus.new: "appointment_cancelled",
     PatientStatus.scheduled: "status_scheduled",
     PatientStatus.unreachable: "status_unreachable",
     PatientStatus.advised: "status_advised",
@@ -244,6 +245,16 @@ async def change_status(
             )
         )
         notification_when = payload.appointment_start_at.strftime("%d.%m.%Y %H:%M")
+    elif patient.status == PatientStatus.scheduled and payload.to_status == PatientStatus.new:
+        # Removing the patient from qabul — release their booked slot.
+        await db.execute(
+            update(Appointment)
+            .where(
+                Appointment.patient_id == patient.id,
+                Appointment.status == AppointmentStatus.scheduled,
+            )
+            .values(status=AppointmentStatus.cancelled)
+        )
 
     from_status = patient.status
     patient.status = payload.to_status

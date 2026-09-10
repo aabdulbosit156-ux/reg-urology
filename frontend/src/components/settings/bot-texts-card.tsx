@@ -15,6 +15,7 @@ const TEXT_LABELS: Record<string, { label: string; hint?: string }> = {
     status_arrived: { label: "Holat: Keldi" },
     status_analysis_ordered: { label: "Holat: Analiz buyurildi" },
     status_analysis_ready: { label: "Holat: Analiz tayyor" },
+    appointment_cancelled: { label: "Qabuldan chiqarilganda" },
 };
 
 export const BotTextsCard = () => {

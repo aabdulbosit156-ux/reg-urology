@@ -34,7 +34,7 @@ export const SEGMENT_LABELS: Record<PatientSegment, string> = {
 export const VALID_TRANSITIONS: Record<PatientStatus, PatientStatus[]> = {
     new: ["scheduled", "unreachable", "advised"],
     unreachable: ["scheduled", "unreachable", "advised"],
-    scheduled: ["arrived", "no_show"],
+    scheduled: ["arrived", "no_show", "new"],
     no_show: ["scheduled", "unreachable"],
     arrived: ["analysis_ordered", "advised"],
     analysis_ordered: ["analysis_ready"],
