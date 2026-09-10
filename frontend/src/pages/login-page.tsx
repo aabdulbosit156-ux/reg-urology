@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { HeartHand } from "@untitledui/icons";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/base/buttons/button";
 import { Input } from "@/components/base/input/input";
+import { FeaturedIcon } from "@/components/foundations/featured-icon/featured-icon";
 import { ApiError } from "@/lib/api-client";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -51,7 +53,7 @@ export const LoginPage = () => {
         script.async = true;
         script.setAttribute("data-telegram-login", TELEGRAM_BOT);
         script.setAttribute("data-size", "large");
-        script.setAttribute("data-radius", "8");
+        script.setAttribute("data-radius", "10");
         script.setAttribute("data-onauth", "onTelegramAuth(user)");
         script.setAttribute("data-request-access", "write");
 
@@ -78,52 +80,63 @@ export const LoginPage = () => {
 
     if (isTelegramChecking) {
         return (
-            <div className="flex min-h-screen items-center justify-center bg-primary text-sm text-tertiary">
+            <div className="flex min-h-dvh items-center justify-center bg-primary text-sm text-tertiary">
                 Yuklanmoqda...
             </div>
         );
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-secondary px-4">
-            <div className="w-full max-w-sm rounded-xl bg-primary p-8 shadow-lg ring-1 ring-secondary">
-                <h1 className="text-xl font-semibold text-primary">RegUrology</h1>
-                <p className="mt-1 text-sm text-tertiary">Boshqaruv paneliga kirish</p>
-
-                <div className="mt-6 flex flex-col gap-4">
-                    <div>
-                        <p className="mb-2 text-sm font-medium text-secondary">Telegram orqali kirish</p>
-                        {TELEGRAM_BOT ? (
-                            <div ref={widgetRef} className="flex justify-center" />
-                        ) : (
-                            <p className="text-xs text-tertiary">
-                                Telegram bot sozlanmagan. Botdagi «🖥 Admin panel» tugmasi orqali kiring.
-                            </p>
-                        )}
-                        {tgError && <p className="mt-2 text-sm text-error-primary">{tgError}</p>}
-                    </div>
-
-                    <div className="border-t border-secondary pt-4">
-                        {showDevLogin ? (
-                            <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-                                <Input label="Login" value={username} onChange={setUsername} isRequired autoFocus />
-                                <Input label="Parol" type="password" value={password} onChange={setPassword} isRequired />
-                                {error && <p className="text-sm text-error-primary">{error}</p>}
-                                <Button type="submit" size="lg" isLoading={isSubmitting} isDisabled={!username || !password}>
-                                    Kirish
-                                </Button>
-                            </form>
-                        ) : (
-                            <button
-                                type="button"
-                                onClick={() => setShowDevLogin(true)}
-                                className="cursor-pointer text-sm text-tertiary underline outline-focus-ring hover:text-secondary"
-                            >
-                                Dev sifatida login/parol bilan kirish
-                            </button>
-                        )}
-                    </div>
+        <div className="flex min-h-dvh flex-col items-center justify-center bg-secondary px-4 py-10">
+            <div className="w-full max-w-sm">
+                <div className="flex flex-col items-center text-center">
+                    <FeaturedIcon icon={HeartHand} color="brand" theme="light" size="xl" />
+                    <h1 className="mt-5 text-2xl font-semibold text-primary">
+                        Reg<span className="text-brand-secondary">Urolog</span>
+                    </h1>
+                    <p className="mt-1 text-sm text-tertiary">Boshqaruv paneliga xush kelibsiz</p>
                 </div>
+
+                <div className="mt-8 rounded-2xl bg-primary p-6 shadow-sm ring-1 ring-secondary sm:p-8">
+                    <p className="text-center text-sm font-medium text-secondary">Telegram orqali kiring</p>
+
+                    {TELEGRAM_BOT ? (
+                        <div ref={widgetRef} className="mt-4 flex min-h-[48px] justify-center" />
+                    ) : (
+                        <p className="mt-4 rounded-lg bg-secondary px-3 py-2.5 text-center text-xs text-tertiary">
+                            Botdagi «🖥 Admin panel» tugmasi orqali kiring.
+                        </p>
+                    )}
+
+                    {tgError && <p className="mt-3 text-center text-sm text-error-primary">{tgError}</p>}
+
+                    <p className="mt-4 text-center text-xs text-quaternary">
+                        Xodimlar botda ro'yxatdan o'tgan Telegram akkaunti bilan kiradilar.
+                    </p>
+
+                    <div className="my-6 flex items-center gap-3">
+                        <span className="h-px flex-1 bg-border-secondary" />
+                        <span className="text-xs font-medium text-quaternary">yoki</span>
+                        <span className="h-px flex-1 bg-border-secondary" />
+                    </div>
+
+                    {showDevLogin ? (
+                        <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
+                            <Input label="Login" value={username} onChange={setUsername} isRequired autoFocus />
+                            <Input label="Parol" type="password" value={password} onChange={setPassword} isRequired />
+                            {error && <p className="text-sm text-error-primary">{error}</p>}
+                            <Button type="submit" size="lg" isLoading={isSubmitting} isDisabled={!username || !password}>
+                                Kirish
+                            </Button>
+                        </form>
+                    ) : (
+                        <Button color="secondary" size="lg" className="w-full" onClick={() => setShowDevLogin(true)}>
+                            Login va parol bilan kirish
+                        </Button>
+                    )}
+                </div>
+
+                <p className="mt-6 text-center text-xs text-quaternary">Dr. Sardor urologiya klinikasi</p>
             </div>
         </div>
     );
