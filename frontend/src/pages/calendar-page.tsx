@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, X as CloseIcon } from "@untitledui/icons";
+import { ChevronLeft, ChevronRight, SearchLg, X as CloseIcon } from "@untitledui/icons";
 import { useSearchParams } from "react-router";
+import { Dialog, Modal, ModalOverlay } from "@/components/application/modals/modal";
 import { Tabs } from "@/components/application/tabs/tabs";
 import { Button } from "@/components/base/buttons/button";
+import { Input } from "@/components/base/input/input";
 import { DayView } from "@/components/calendar/day-view";
 import { MonthView } from "@/components/calendar/month-view";
 import { WeekView } from "@/components/calendar/week-view";
@@ -20,8 +22,9 @@ import {
     startOfWeek,
     withTimeOfSlot,
 } from "@/lib/calendar";
-import { formatFullDateUz, formatMonthYearUz, formatWeekRangeUz } from "@/lib/uz-date";
+import { formatFullDateUz, formatMonthYearUz, formatTimeUz, formatWeekRangeUz } from "@/lib/uz-date";
 import type { CalendarAppointment } from "@/types/appointment";
+import type { Patient, PatientListResponse } from "@/types/patient";
 import type { ScheduleSettings } from "@/types/settings";
 
 type ViewMode = "day" | "week" | "month";
@@ -63,6 +66,14 @@ export const CalendarPage = () => {
     const [isFindingSlot, setIsFindingSlot] = useState(false);
     const [isBooking, setIsBooking] = useState(false);
     const [bookingError, setBookingError] = useState<string | null>(null);
+
+    // Empty-slot patient picker (day view, non-booking mode).
+    const [pickSlotStart, setPickSlotStart] = useState<Date | null>(null);
+    const [pickerPatients, setPickerPatients] = useState<Patient[]>([]);
+    const [pickerSearch, setPickerSearch] = useState("");
+    const [pickerLoading, setPickerLoading] = useState(false);
+    const [pickerError, setPickerError] = useState<string | null>(null);
+    const [assigningId, setAssigningId] = useState<string | null>(null);
 
     const range = useMemo(() => {
         if (view === "day") return { start: anchor, end: addDays(anchor, 1) };
@@ -191,6 +202,47 @@ export const CalendarPage = () => {
         }
     };
 
+    const openSlotPicker = useCallback(async (start: Date) => {
+        setPickSlotStart(start);
+        setPickerSearch("");
+        setPickerError(null);
+        setPickerLoading(true);
+        try {
+            const result = await api.get<PatientListResponse>("/patients?segment=new&limit=200");
+            setPickerPatients(result.items);
+        } catch (err) {
+            setPickerError(err instanceof ApiError ? err.message : "Bemorlarni yuklashda xatolik");
+        } finally {
+            setPickerLoading(false);
+        }
+    }, []);
+
+    const handleAssignPatient = async (patient: Patient) => {
+        if (!pickSlotStart || !schedule) return;
+        setAssigningId(patient.id);
+        setPickerError(null);
+        try {
+            await api.patch(`/patients/${patient.id}/status`, {
+                to_status: "scheduled",
+                appointment_start_at: pickSlotStart.toISOString(),
+                appointment_duration_min: schedule.slot_minutes,
+                note: null,
+            });
+            setPickSlotStart(null);
+            await loadAppointments();
+        } catch (err) {
+            setPickerError(err instanceof ApiError ? err.message : "Band qilishda xatolik");
+        } finally {
+            setAssigningId(null);
+        }
+    };
+
+    const filteredPickerPatients = pickerPatients.filter((p) => {
+        const q = pickerSearch.trim().toLowerCase();
+        if (!q) return true;
+        return p.full_name.toLowerCase().includes(q) || p.phone.toLowerCase().includes(q);
+    });
+
     const goToday = () => setAnchor(startOfDay(new Date()));
     const goPrev = () => {
         if (view === "day") setAnchor((d) => addDays(d, -1));
@@ -265,6 +317,7 @@ export const CalendarPage = () => {
                             schedule={schedule}
                             onOpenPatient={setSelectedPatientId}
                             booking={bookingMode}
+                            onPickEmptySlot={bookingMode ? undefined : openSlotPicker}
                         />
                     )}
                     {view === "week" && !bookPatientId && (
@@ -298,6 +351,61 @@ export const CalendarPage = () => {
                 onOpenChange={(open) => !open && setSelectedPatientId(null)}
                 onChanged={loadAppointments}
             />
+
+            <ModalOverlay isOpen={!!pickSlotStart} onOpenChange={(open) => !open && setPickSlotStart(null)}>
+                <Modal>
+                    <Dialog>
+                        <div className="flex max-h-[80vh] w-full max-w-md flex-col rounded-xl bg-primary p-6 shadow-xl">
+                            <h2 className="text-lg font-semibold text-primary">
+                                Bemorni qabulga qo'shish
+                                {pickSlotStart && <span className="text-brand-secondary"> · {formatTimeUz(pickSlotStart)}</span>}
+                            </h2>
+                            <p className="mt-1 text-sm text-tertiary">Yangi bemorlardan birini tanlang.</p>
+
+                            <Input
+                                icon={SearchLg}
+                                aria-label="Qidirish"
+                                placeholder="Ism yoki telefon"
+                                value={pickerSearch}
+                                onChange={setPickerSearch}
+                                className="mt-4"
+                            />
+
+                            {pickerError && <p className="mt-3 text-sm text-error-primary">{pickerError}</p>}
+
+                            <div className="mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+                                {pickerLoading ? (
+                                    <p className="py-8 text-center text-sm text-tertiary">Yuklanmoqda...</p>
+                                ) : filteredPickerPatients.length === 0 ? (
+                                    <p className="py-8 text-center text-sm text-tertiary">Yangi bemorlar topilmadi</p>
+                                ) : (
+                                    filteredPickerPatients.map((p) => (
+                                        <button
+                                            key={p.id}
+                                            type="button"
+                                            disabled={assigningId !== null}
+                                            onClick={() => handleAssignPatient(p)}
+                                            className="flex items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left outline-focus-ring transition duration-100 ease-linear hover:bg-secondary disabled:opacity-50"
+                                        >
+                                            <span className="min-w-0">
+                                                <span className="block truncate text-sm font-medium text-primary">{p.full_name}</span>
+                                                <span className="block truncate text-xs text-tertiary">{p.phone}</span>
+                                            </span>
+                                            {assigningId === p.id && <span className="text-xs text-tertiary">...</span>}
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+
+                            <div className="mt-4 flex justify-end">
+                                <Button color="secondary" onClick={() => setPickSlotStart(null)}>
+                                    Yopish
+                                </Button>
+                            </div>
+                        </div>
+                    </Dialog>
+                </Modal>
+            </ModalOverlay>
         </div>
     );
 };

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, Stars02, UploadCloud02 } from "@untitledui/icons";
+import { Check, Stars02, Trash01, UploadCloud02 } from "@untitledui/icons";
 import { useNavigate } from "react-router";
 import { SlideoutMenu } from "@/components/application/slideout-menus/slideout-menu";
 import { Button } from "@/components/base/buttons/button";
@@ -40,6 +40,10 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
     const [aiLoadingId, setAiLoadingId] = useState<string | null>(null);
     const [aiError, setAiError] = useState<string | null>(null);
 
+    const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
+
     const loadPatient = useCallback(async () => {
         if (!patientId) return;
         setIsLoading(true);
@@ -65,6 +69,8 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
             setUploadFiles([]);
             setUploadCaption("");
             setUploadError(null);
+            setIsConfirmingDelete(false);
+            setDeleteError(null);
         }
     }, [patientId, loadPatient]);
 
@@ -148,6 +154,21 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
             setAiError(err instanceof ApiError ? err.message : "AI tahlilida xatolik");
         } finally {
             setAiLoadingId(null);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!patient) return;
+        setDeleteError(null);
+        setIsDeleting(true);
+        try {
+            await api.delete(`/patients/${patient.id}`);
+            onChanged();
+            onOpenChange(false);
+        } catch (err) {
+            setDeleteError(err instanceof ApiError ? err.message : "O'chirishda xatolik");
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -392,10 +413,43 @@ export const PatientSlideout = ({ patientId, onOpenChange, onChanged }: PatientS
                         )}
                     </SlideoutMenu.Content>
 
-                    <SlideoutMenu.Footer className="flex justify-end">
-                        <Button color="secondary" onClick={close}>
-                            Yopish
-                        </Button>
+                    <SlideoutMenu.Footer className="flex flex-col gap-3">
+                        {isConfirmingDelete ? (
+                            <div className="flex flex-col gap-2 rounded-lg bg-error-primary/10 p-3 ring-1 ring-error">
+                                <p className="text-sm text-primary">
+                                    <strong>{patient?.full_name}</strong> ni butunlay o'chirishni tasdiqlaysizmi?
+                                </p>
+                                {deleteError && <p className="text-sm text-error-primary">{deleteError}</p>}
+                                <div className="flex justify-end gap-2">
+                                    <Button size="sm" color="secondary" onClick={() => setIsConfirmingDelete(false)}>
+                                        Bekor qilish
+                                    </Button>
+                                    <Button size="sm" color="primary-destructive" isLoading={isDeleting} onClick={handleDelete}>
+                                        O'chirish
+                                    </Button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex items-center justify-between gap-2">
+                                {canManageStatus ? (
+                                    <Button
+                                        color="tertiary-destructive"
+                                        iconLeading={Trash01}
+                                        onClick={() => {
+                                            setDeleteError(null);
+                                            setIsConfirmingDelete(true);
+                                        }}
+                                    >
+                                        O'chirish
+                                    </Button>
+                                ) : (
+                                    <span />
+                                )}
+                                <Button color="secondary" onClick={close}>
+                                    Yopish
+                                </Button>
+                            </div>
+                        )}
                     </SlideoutMenu.Footer>
                 </>
             )}

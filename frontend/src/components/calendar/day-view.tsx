@@ -16,9 +16,11 @@ interface DayViewProps {
     schedule: ScheduleSettings;
     onOpenPatient: (patientId: string) => void;
     booking?: BookingMode;
+    /** Non-booking mode: clicking a free future slot to attach an existing patient. */
+    onPickEmptySlot?: (start: Date) => void;
 }
 
-export const DayView = ({ date, appointments, schedule, onOpenPatient, booking }: DayViewProps) => {
+export const DayView = ({ date, appointments, schedule, onOpenPatient, booking, onPickEmptySlot }: DayViewProps) => {
     const slots = generateTimeSlots(schedule.work_start, schedule.work_end, schedule.slot_minutes);
     const totalHeight = slots.length * ROW_HEIGHT_REM;
     const now = new Date();
@@ -58,6 +60,16 @@ export const DayView = ({ date, appointments, schedule, onOpenPatient, booking }
                                     className="absolute inset-x-1 top-0 flex items-center justify-center rounded-md text-xs font-medium text-tertiary opacity-0 outline-focus-ring transition duration-100 ease-linear hover:bg-brand-primary_alt hover:text-brand-secondary hover:opacity-100"
                                 >
                                     {slot} — band qilish
+                                </button>
+                            )}
+                            {!booking && onPickEmptySlot && isFree && !isPast && (
+                                <button
+                                    type="button"
+                                    onClick={() => onPickEmptySlot(slotStart)}
+                                    style={{ height: `${ROW_HEIGHT_REM}rem` }}
+                                    className="absolute inset-x-1 top-0 flex items-center justify-center rounded-md text-xs font-medium text-tertiary opacity-0 outline-focus-ring transition duration-100 ease-linear hover:bg-brand-primary_alt hover:text-brand-secondary hover:opacity-100"
+                                >
+                                    ＋ {slot} — bemor qo'shish
                                 </button>
                             )}
                         </div>
